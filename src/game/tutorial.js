@@ -62,12 +62,12 @@ function wireStep(fromType, toType, id, title, card, extra = {}) {
 
 // ------------------------------------------------------------------ the shifts
 const L01 = [
-  info('welcome', 'WELCOME TO THE NOC', [
+  goalStep('welcome', 'WELCOME TO THE NOC', [
     'Requests arrive at the INTERNET node and must reach something that can finish them.',
     'Right now nothing is built, so nothing is even being sent: no path, no traffic.',
     'Your job is to build the path, and to keep every queue on it from spilling.',
     'This card is the tutorial. Do what it says, or press [N] to move on, or [ESC] to drop out.',
-  ], [{ panel: 'OBJECTIVES' }, { panel: 'BUILD' }]),
+  ], [{ panel: 'OBJECTIVES' }, { panel: 'BUILD' }], (g) => g.sim.nodes.count > 1),
 
   placeStep('COMPUTE', 'place-app', 'PLACE AN APP SERVER', [
     'Press [1] (or click ▸ % APP SERVER in the BUILD panel), then click inside the highlighted zone.',

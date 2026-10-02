@@ -298,15 +298,23 @@ test('input -> sim -> hud: play L01 through the keyboard and mouse', () => {
   stub.pump(2);
   eq(game.screen, 'play', 'menu pick started the shift');
   eq(game.level.id, 'L01', 'first shift');
+  ok(game.tut && game.tut.active, 'the tutorial is running on a fresh save');
 
+  stub.key('n');                                  // read the welcome card, move on
+  stub.pump(1);
+  eq(game.tut.number, 2, 'step 2 asks for the app server');
   stub.key('1');                                   // 1 = first build item (APP SERVER)
   stub.click(33, 21);                              // place it
   stub.pump(1);
   eq(game.sim.nodes.count, 2, 'app server placed by mouse');
+  stub.pump(70);                                   // the card notices and moves on by itself
+  ok(game.tut.number >= 3, 'the tutorial advanced after the box went down');
   stub.key('2');                                   // 2 = SQL
   stub.click(63, 21);
   stub.pump(1);
   eq(game.sim.nodes.count, 3, 'database placed');
+  stub.pump(70);
+  eq(game.tut.number, 4, 'now the wiring steps: ' + game.tut.step.title);
 
   stub.click(10, 21);                              // select the INTERNET
   stub.pump(1);
@@ -316,12 +324,15 @@ test('input -> sim -> hud: play L01 through the keyboard and mouse', () => {
   stub.click(33, 21);                              // ...to the app server
   stub.pump(1);
   ok(game.sim.isConnected(0, 1), 'internet -> app wired');
+  stub.pump(70);
 
   stub.click(33, 21); stub.pump(1);
   eq(game.ui.sel, 1, 'app server selected');
   stub.key('w'); stub.pump(1);
   stub.click(63, 21); stub.pump(1);
   ok(game.sim.isConnected(1, 2), 'app -> db wired');
+  stub.pump(70);
+  ok(game.tut.number >= 6, 'the tour followed the build: ' + game.tut.describe());
 
   stub.key('='); stub.key('=');                    // 4x
   stub.pump(40);
@@ -372,7 +383,7 @@ test('sim: the reference solution wins every campaign level, with no build error
 });
 
 // --------------------------------------------------------------------- 5. tutorial + codex
-const { Tutorial, stepsFor } = await import('../src/game/tutorial.js');
+const { Tutorial, stepsFor, _test: TUT } = await import('../src/game/tutorial.js');
 const { codexEntries, codexProgress, CODEX_TABS } = await import('../src/game/codex.js');
 const { MAX_DIM, wrap } = await import('../src/render/term.js');
 const SAVE_KEY = 'kernelarchitect.save.v1';
@@ -381,14 +392,19 @@ const savedNow = () => { try { return JSON.parse(globalThis.localStorage.getItem
 test('tutorial: L01 unlocks in order and refuses everything a step does not ask for', () => {
   const lv = LEVELS[0];
   const sim = new Sim(lv, { seed: 4242 });
+  sim.money = 2000;                                               // this test is about the tour, not the wallet
   const g = { sim };
   const tut = new Tutorial(lv, 'first', { completed: false });
   ok(tut.active, 'the tour starts active');
   eq(tut.total, 7, 'L01 has seven steps');
   eq(tut.step.allow, null, 'the welcome card locks nothing');
   ok(tut.gate('pick', { key: 'SQL' }, g).ok, 'and does not gate the palette');
+  sim.do('place', { type: 'COMPUTE', x: 30, y: 20 });            // the player starts without reading
+  for (let i = 0; i < 40; i++) tut.tick(g);
+  eq(tut.number, 2, 'the welcome card gets out of the way once they build something');
+  sim.do('remove', { i: 1 });                                    // back to an empty board
 
-  tut.next();                                                    // 2: place the app server
+  // step 2: place the app server
   ok(/PLACE/.test(tut.step.title), 'step 2 asks for a placement: ' + tut.step.title);
   ok(!tut.gate('pick', { key: 'SQL' }, g).ok, 'the database is locked while the step wants the app server');
   ok(tut.gate('pick', { key: 'COMPUTE' }, g).ok, 'the app server is allowed');
@@ -403,13 +419,15 @@ test('tutorial: L01 unlocks in order and refuses everything a step does not ask 
   sim.do('place', { type: 'SQL', x: 60, y: 20 });
   for (let i = 0; i < 40; i++) tut.tick(g);
   eq(tut.number, 4, 'step 4 is the first wire');
-  ok(tut.gate('wire', { a: 0, b: 1 }, g).ok, 'wiring internet -> app is allowed');
-  const bad = tut.gate('wire', { a: 1, b: 2 }, g);
+  const app = TUT.firstType(g, 'COMPUTE'), db = TUT.firstType(g, 'SQL');
+  ok(app > 0 && db > 0, 'both boxes are live on the board');
+  ok(tut.gate('wire', { a: 0, b: app }, g).ok, 'wiring internet -> app is allowed');
+  const bad = tut.gate('wire', { a: app, b: db }, g);
   ok(!bad.ok && /NET/.test(bad.err), 'wiring the wrong pair is refused: ' + bad.err);
-  sim.do('connect', { a: 0, b: 1 });
+  sim.do('connect', { a: 0, b: app });
   for (let i = 0; i < 40; i++) tut.tick(g);
   eq(tut.number, 5, 'step 5 is the second wire');
-  sim.do('connect', { a: 1, b: 2 });
+  sim.do('connect', { a: app, b: db });
   for (let i = 0; i < 40; i++) tut.tick(g);
   eq(tut.number, 6, 'step 6 watches the first requests');
   ok(tut.step.allow === null || tut.step.allow === undefined, 'the watch step locks nothing');
