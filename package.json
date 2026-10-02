@@ -1,0 +1,17 @@
+{
+  "name": "kernel-architect",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "A deterministic ASCII/terminal infrastructure simulator: build a topology, route the traffic, survive the incident.",
+  "license": "MIT",
+  "scripts": {
+    "serve": "python3 -m http.server 8000",
+    "verify": "node tools/verify.mjs",
+    "test": "node tests/run.mjs",
+    "check": "node tools/verify.mjs && node tests/run.mjs"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

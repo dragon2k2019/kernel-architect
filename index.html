@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
+<title>KERNEL ARCHITECT</title>
+<meta name="description" content="A deterministic ASCII infrastructure simulator. Build a topology, route the traffic, survive the incident.">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="frame">
+    <canvas id="gl" width="1280" height="800" tabindex="0"></canvas>
+    <div id="boot" class="overlay">
+      <pre class="logo">
+ ██ ▄█▀ ██████  ██▀███   ███▄    █  ▓█████  ██▓        ▄▄▄       ██▀███   ▄████▄   ██░ ██  ██▓▄▄▄█████▓▓█████  ▄████▄  ▄▄▄█████▓
+ ██▄█▒ ▓██   ▒ ▓██ ▒ ██▒ ██ ▀█   █  ▓█   ▀ ▓██▒       ▒████▄    ▓██ ▒ ██▒▒██▀ ▀█  ▓██░ ██▒▓██▒▓  ██▒ ▓▒▓█   ▀ ▒██▀ ▀█  ▓  ██▒ ▓▒
+▓███▄░ ▒████ ░ ▓██ ░▄█ ▒▓██  ▀█ ██▒▒███   ▒██░       ▒██  ▀█▄  ▓██ ░▄█ ▒▒▓█    ▄ ▒██▀▀██░▒██▒▒ ▓██░ ▒░▒███   ▒▓█    ▄ ▒ ▓██░ ▒░
+▓██ █▄ ░▓█▒  ░ ▒██▀▀█▄  ▓██▒  ▐▌██▒▒▓█  ▄ ▒██░       ░██▄▄▄▄██ ▒██▀▀█▄  ▒▓▓▄ ▄██▒░▓█ ░██ ░██░░ ▓██▓ ░ ▒▓█  ▄ ▒▓▓▄ ▄██▒░ ▓██▓ ░
+▒██▒ █▄░▒█░    ░██▓ ▒██▒▒██░   ▓██░░▒████▒░██████▒    ▓█   ▓██▒░██▓ ▒██▒▒ ▓███▀ ░░▓█▒░██▓░██░  ▒██▒ ░ ░▒████▒▒ ▓███▀ ░  ▒██▒ ░
+▒ ▒▒ ▓▒ ▒ ░    ░ ▒▓ ░▒▓░░ ▒░   ▒ ▒ ░░ ▒░ ░░ ▒░▓  ░    ▒▒   ▓▒█░░ ▒▓ ░▒▓░░ ░▒ ▒  ░ ▒ ░░▒░▒░▓    ▒ ░░   ░░ ▒░ ░░ ░▒ ▒  ░  ▒ ░░
+      </pre>
+      <p id="bootmsg">booting kernel…</p>
+      <p class="dim">If this message stays on screen, the game failed to start. Requirements: a browser with WebGL2 and JavaScript modules.<br>
+      Command-line smoke test: <code>node tools/verify.mjs</code></p>
+    </div>
+  </div>
+  <div id="err" class="overlay hidden" role="alert">
+    <pre id="errtxt" class="err"></pre>
+  </div>
+  <script>
+    // Errors must be visible: the whole UI is drawn inside the canvas.
+    (function () {
+      function show(msg) {
+        var e = document.getElementById('err'), b = document.getElementById('boot');
+        if (e && b) { document.getElementById('errtxt').textContent = msg; b.classList.add('hidden'); e.classList.remove('hidden'); }
+      }
+      window.addEventListener('error', function (ev) {
+        show('KERNEL PANIC\n\n' + (ev.message || 'unknown error') + '\n' + (ev.filename || '') + ':' + (ev.lineno || 0) +
+             '\n\n' + ((ev.error && ev.error.stack) ? String(ev.error.stack) : ''));
+      });
+      window.addEventListener('unhandledrejection', function (ev) { show('KERNEL PANIC (promise)\n\n' + String(ev.reason && ev.reason.stack || ev.reason)); });
+      if (location.protocol === 'file:') {
+        show('KERNEL PANIC\n\nThis game is built from native ES modules, so it must be served over HTTP.\n\nRun:  python3 -m http.server 8000\nthen open http://localhost:8000/');
+      }
+      if (!window.WebGL2RenderingContext) { show('KERNEL PANIC\n\nThis browser has no WebGL2 support. Try a recent Chrome, Firefox, Edge or Safari.'); }
+    })();
+  </script>
+  <script type="module" src="src/game/main.js"></script>
+</body>
+</html>
