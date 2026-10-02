@@ -371,6 +371,206 @@ test('sim: the reference solution wins every campaign level, with no build error
   }
 });
 
+// --------------------------------------------------------------------- 5. tutorial + codex
+const { Tutorial, stepsFor } = await import('../src/game/tutorial.js');
+const { codexEntries, codexProgress, CODEX_TABS } = await import('../src/game/codex.js');
+const { MAX_DIM, wrap } = await import('../src/render/term.js');
+const SAVE_KEY = 'kernelarchitect.save.v1';
+const savedNow = () => { try { return JSON.parse(globalThis.localStorage.getItem(SAVE_KEY) || '{}') || {}; } catch (e) { return {}; } };
+
+test('tutorial: L01 unlocks in order and refuses everything a step does not ask for', () => {
+  const lv = LEVELS[0];
+  const sim = new Sim(lv, { seed: 4242 });
+  const g = { sim };
+  const tut = new Tutorial(lv, 'first', { completed: false });
+  ok(tut.active, 'the tour starts active');
+  eq(tut.total, 7, 'L01 has seven steps');
+  eq(tut.step.allow, null, 'the welcome card locks nothing');
+  ok(tut.gate('pick', { key: 'SQL' }, g).ok, 'and does not gate the palette');
+
+  tut.next();                                                    // 2: place the app server
+  ok(/PLACE/.test(tut.step.title), 'step 2 asks for a placement: ' + tut.step.title);
+  ok(!tut.gate('pick', { key: 'SQL' }, g).ok, 'the database is locked while the step wants the app server');
+  ok(tut.gate('pick', { key: 'COMPUTE' }, g).ok, 'the app server is allowed');
+  ok(!tut.gate('place', { key: 'COMPUTE', x: 4, y: 4 }, g).ok, 'outside the zone placement is refused');
+  ok(tut.gate('place', { key: 'COMPUTE', x: 30, y: 20 }, g).ok, 'inside the zone it is allowed');
+  sim.do('place', { type: 'COMPUTE', x: 30, y: 20 });
+  for (let i = 0; i < 40; i++) tut.tick(g);
+  eq(tut.number, 3, 'the card advances by itself once the app server is up');
+
+  ok(tut.gate('pick', { key: 'SQL' }, g).ok, 'step 3 wants the database');
+  ok(!tut.gate('pick', { key: 'COMPUTE' }, g).ok, 'and locks the app server again');
+  sim.do('place', { type: 'SQL', x: 60, y: 20 });
+  for (let i = 0; i < 40; i++) tut.tick(g);
+  eq(tut.number, 4, 'step 4 is the first wire');
+  ok(tut.gate('wire', { a: 0, b: 1 }, g).ok, 'wiring internet -> app is allowed');
+  const bad = tut.gate('wire', { a: 1, b: 2 }, g);
+  ok(!bad.ok && /NET/.test(bad.err), 'wiring the wrong pair is refused: ' + bad.err);
+  sim.do('connect', { a: 0, b: 1 });
+  for (let i = 0; i < 40; i++) tut.tick(g);
+  eq(tut.number, 5, 'step 5 is the second wire');
+  sim.do('connect', { a: 1, b: 2 });
+  for (let i = 0; i < 40; i++) tut.tick(g);
+  eq(tut.number, 6, 'step 6 watches the first requests');
+  ok(tut.step.allow === null || tut.step.allow === undefined, 'the watch step locks nothing');
+  tut.next();
+  eq(tut.number, 7, 'step 7 closes the tour');
+  ok(tut.active, 'still on the last card');
+  tut.next();
+  ok(!tut.active && tut.done, 'the tour is over');
+});
+
+test('tutorial: every card in the game fits its box, and every step is reachable', () => {
+  let steps = 0;
+  for (const lv of LEVELS) {
+    for (const mode of ['first', 'all', 'off']) {
+      const list = stepsFor(lv, mode);
+      if (mode === 'off') { eq(list, null, 'off means no tour at all'); continue; }
+      if (!list) continue;
+      for (const s of list) {
+        ok(s.id && s.title && Array.isArray(s.card) && s.card.length, `${lv.id}/${s.id} has a card`);
+        ok(['next', 'skip'].includes(s.primary), `${lv.id}/${s.id} has a button`);
+        const lines = wrap(s.card.join(' '), 78 - 5, 99);
+        ok(lines.length <= 6, `${lv.id}/${s.id}: the card must fit (${lines.length} lines)`);
+        for (const f of s.focus) ok(f.item || f.zone || f.nodes || f.panel || f.board, 'focus descriptors are known kinds');
+      }
+      steps += list.length;
+    }
+  }
+  ok(steps > 30, `the game ships a real tour (${steps} steps over all levels)`);
+  ok(stepsFor(LEVELS[0], 'all').length === 7, 'L01 is the full guided shift');
+  ok(stepsFor(LEVELS[4], 'all').length === 3, 'L05 gets the short per-shift tour');
+  eq(stepsFor(LEVELS[4], 'first'), null, 'and nothing extra in guided-opening mode');
+});
+
+test('tutorial: NEXT and SKIP both stick, and a finished tour does not replay itself', () => {
+  game.progress = {}; game.tutDone = {}; game.codexSeen = { nodes: {}, traffic: {} };
+  game.save();
+  game.startLevel(LEVELS[0]);
+  stub.pump(2);
+  eq(game.screen, 'play', 'a fresh L01 is running');
+  ok(game.tut && game.tut.active, 'the tour is on');
+  eq(game.tut.number, 1, 'from step 1');
+
+  stub.pump(2);
+  const next = game.hitboxes.find((h) => h.id === 'tut-next');
+  ok(next, 'the card published a NEXT hitbox');
+  stub.click(next.x + 1, next.y);
+  stub.pump(2);
+  eq(game.tut.number, 2, 'clicking NEXT advances the card');
+
+  let guard = 0;
+  while (game.tut && game.tut.active && guard++ < 20) { stub.key('n'); stub.pump(1); }
+  ok(!game.tut.active, 'the tour can be walked to the end with N');
+  eq(savedNow().tutDone && savedNow().tutDone.L01, 1, 'finishing the tour is remembered');
+
+  game.startLevel(LEVELS[0]);
+  stub.pump(2);
+  ok(!game.tut.active, 'a finished tour does not start again');
+  stub.key('t'); stub.pump(2);
+  ok(game.tut.active && game.tut.number === 1, 'T brings it back on demand');
+  stub.key('Escape'); stub.pump(2);
+  ok(!game.tut.active, 'ESC ends it');
+  eq(savedNow().tutDone.L01, 1, 'and the skip is remembered too');
+  stub.key('k'); stub.pump(1);
+  ok(game.ui.codexOpen, 'K opens the codex from the shift');
+  stub.key('Escape'); stub.pump(1);
+  ok(!game.ui.codexOpen, 'ESC closes the codex');
+  eq(game.screen, 'play', 'and leaves the shift running');
+});
+
+test('codex: entries stay locked until the player has met them', () => {
+  const empty = { seen: { nodes: {}, traffic: {} }, progress: {} };
+  const nodes = codexEntries('nodes', empty);
+  const inter = nodes.find((e) => e.key === 'INTERNET');
+  const compute = nodes.find((e) => e.key === 'COMPUTE');
+  ok(inter && !inter.locked, 'the internet is known from the start');
+  ok(compute && compute.locked && !compute.seen, 'an unbuilt node is locked');
+  const met = { seen: { nodes: { COMPUTE: true }, traffic: { READ: true } }, progress: {} };
+  ok(!codexEntries('nodes', met).find((e) => e.key === 'COMPUTE').locked, 'placing one unlocks it');
+  ok(codexEntries('nodes', met).find((e) => e.key === 'SQL').locked, 'the rest stay locked');
+  ok(!codexEntries('traffic', met).find((e) => e.key === 'READ').locked, 'serving a type unlocks it');
+  ok(codexEntries('traffic', met).find((e) => e.key === 'WRITE').locked, 'unserved types stay locked');
+  ok(codexProgress(met).seen > codexProgress(empty).seen, 'discoveries move the progress counter');
+  eq(codexProgress(empty).total, codexProgress(met).total, 'the total never changes');
+  const shifts = codexEntries('shifts', { seen: {}, progress: { L01: 3 } });
+  ok(!shifts[0].locked, 'a cleared shift is unlocked');
+  ok(!shifts[1].locked, 'so is the next one: clearing L01 unlocks L02');
+  ok(shifts[2].locked, 'L03 waits for L02');
+  ok(codexEntries('mechanics', empty).every((e) => !e.locked), 'mechanics are always readable');
+  ok(codexEntries('keys', empty).every((e) => !e.locked), 'so are the controls');
+  for (const tab of CODEX_TABS) ok(codexEntries(tab.id, met).length > 0, tab.id + ' has entries');
+});
+
+test('codex: every tab draws, and Escape/arrows drive it in the real game', () => {
+  const ctx = { seen: { nodes: { COMPUTE: true, SQL: true }, traffic: { READ: true } }, progress: { L01: 3 } };
+  for (let i = 0; i < CODEX_TABS.length; i++) {
+    const term = new Term(HUD.COLS, HUD.ROWS);
+    const g = {
+      term, sim: null, level: null, ui: { helpPage: 0 }, hitboxes: [],
+      codex: { tabs: CODEX_TABS, tab: i, row: 0, entries: codexEntries(CODEX_TABS[i].id, ctx), progress: codexProgress(ctx), hint: 'hint' },
+    };
+    HUD.drawCodex(g);
+    const ink = term.ch.filter((c) => c !== ' ').length;
+    ok(ink > 600, `${CODEX_TABS[i].id} tab draws real content (${ink} glyphs)`);
+    ok(term.ch.join('').includes(CODEX_TABS[i].name.slice(0, 4)), `${CODEX_TABS[i].id} tab is labelled on screen`);
+    ok(g.hitboxes.length >= CODEX_TABS.length + 1, 'the codex publishes tab hitboxes');
+    for (const glyph of term.ch) ok(typeof glyph === 'string' && glyph.length === 1, 'single glyph per cell');
+  }
+  stub.key('k'); stub.pump(1);
+  ok(game.ui.codexOpen, 'the codex opens');
+  const tab = () => game.ui.codexTab;
+  stub.key('ArrowRight'); stub.pump(1); eq(tab(), 1, 'right arrow moves a tab');
+  stub.key('ArrowRight'); stub.pump(1); eq(tab(), 2, 'and again');
+  stub.key('ArrowLeft'); stub.pump(1); eq(tab(), 1, 'left arrow moves back');
+  stub.key('3'); stub.pump(1); eq(tab(), 2, 'number keys jump to a tab');
+  stub.key('ArrowDown'); stub.pump(1);
+  eq(game.ui.codexRow, 1, 'down walks the entry list');
+  const row = game.hitboxes.find((h) => h.id === 'codex-row:0');
+  ok(row, 'rows are clickable');
+  stub.click(row.x + 2, row.y); stub.pump(1);
+  eq(game.ui.codexRow, 0, 'clicking a row selects it');
+  for (const h of game.hitboxes) ok(h.w > 0 && h.h > 0, 'hitboxes are real rects');
+  stub.key('k'); stub.pump(1);
+  ok(!game.ui.codexOpen, 'K closes it again');
+});
+
+test('hud: the tutorial spotlights the step and dims the rest of the board', () => {
+  const sim = new Sim(richLevel({ id: 'TUT', traffic: [{ type: 'READ', rps: 40, ramp: 0 }] }), { seed: 99 });
+  buildFull(sim);
+  for (let i = 0; i < 120; i++) sim.step();
+  const term = new Term(HUD.COLS, HUD.ROWS);
+  const renderer = { begin() {}, cell() {}, sprite() {}, flush() {}, instances: 0 };
+  const step = {
+    id: 'place-app', title: 'PLACE AN APP SERVER', card: ['Press 1 and put it in the zone.', 'It costs money.'],
+    focus: [{ item: 'CACHE' }, { zone: [18, 8, 62, 26] }], allow: { build: ['COMPUTE'], wire: [], zone: [18, 8, 62, 26], ops: [] },
+    check: null, primary: 'skip',
+  };
+  const g = {
+    term, sim, level: sim.level, renderer, seedHex: 'AB', hashHex: 'CD', perfMs: 0.1, glInfo: 'stub',
+    paused: false, speed: 1, toast: null, menuItems: [], progressWon: () => 0, progressTotal: () => 10,
+    seedText: 'x', ui: { sel: -1, hover: -1, placeKey: 'COMPUTE', buildIdx: 0, cursorX: 30, cursorY: 20, wireFrom: -1, wireTo: -1, menu: 0, helpPage: 0, flow: false, flowType: 1, confirm: null, note: '', noteUntil: 0, followMouse: true },
+    hitboxes: [],
+    tut: { active: true, step, number: 2, total: 7, pending: 0, allowedBuilds: () => new Set(['COMPUTE']) },
+  };
+  HUD.drawFrame(g);
+  ok(term.dim[8 * HUD.COLS + 40] === 1, 'the focused zone stays at full brightness');
+  ok(term.dim[2 * HUD.COLS + 100] < 1, 'the far side of the board is dimmed');
+  ok(Math.abs(term.dim[2 * HUD.COLS + 100] - MAX_DIM) < 1e-6, 'dimmed to the spotlight level');
+  ok(term.dim[10 * HUD.COLS + 130] < 1, 'the right-hand panels are dimmed too');
+  eq(term.ch[(8 - 1) * HUD.COLS + (18 - 1)], '◆', 'the focus rect is ringed');
+  const amber = term.bg.filter((b) => b === PAL.amber).length;
+  ok(amber > 8, 'the card has its amber title bar and buttons');
+  ok(g.hitboxes.some((h) => h.id === 'tut-next') && g.hitboxes.some((h) => h.id === 'tut-skip'), 'the card publishes its buttons');
+  const txt = term.ch.join('');
+  ok(txt.includes('PLACE AN APP SERVER'), 'the step title is on the card');
+  ok(txt.includes('zone'), 'the card body is on screen');
+  // with no tutorial up, nothing is dimmed
+  g.tut = null;
+  HUD.drawFrame(g);
+  ok(term.dim.every((d) => d === 1), 'no tutorial, no dimming');
+});
+
 // --------------------------------------------------------------------- report
 const width = Math.max(...results.map((r) => r[1].length)) + 2;
 for (const [status, name] of results) console.log((status === 'ok' ? ' ok ' : 'FAIL') + '  ' + name.padEnd(width) + (status === 'ok' ? '' : ''));

@@ -8,7 +8,7 @@
 //   row  48       notification
 //   row  49       status + key hints
 
-import { PAL, rgba, lerp, money, clock, padStart, padEnd, wrap } from './term.js';
+import { PAL, MAX_DIM, rgba, lerp, money, clock, padStart, padEnd, wrap } from './term.js';
 import { NODES, NODE, TRAFFIC, TIERS, SIM, nodeCapRps } from '../sim/content.js';
 import { NODE_W, NODE_H, WORLD_W, WORLD_H } from '../sim/sim.js';
 import { CAP } from '../core/arena.js';
@@ -420,6 +420,7 @@ function panelBuild(g, y, h) {
   const list = g.level.unlock || [];
   const x = PX + 2, w = PW - 4;
   let r = y + 1;
+  const allowed = g.tut && g.tut.allowedBuilds ? g.tut.allowedBuilds() : null;
   for (let k = 0; k < list.length; k++) {
     if (r >= y + h - 1) {
       term.text(x, r, `… ${list.length - k} more (TAB to cycle)`, PAL.dimmer);
@@ -427,10 +428,12 @@ function panelBuild(g, y, h) {
     }
     const key = NODE[list[k]];
     const def = NODES[key];
-    const afford = sim.money >= def.cost;
+    const lockedByTut = allowed ? !allowed.has(list[k]) : false;
+    const afford = sim.money >= def.cost && !lockedByTut;
     const chosen = g.ui.placeKey === list[k];
     const hot = g.ui.buildIdx === k;
     const fg = afford ? rgba(def.color.map((c) => c / 255)) : PAL.dimmer;
+    if (lockedByTut && !chosen) term.fill(PX + 1, r, PW - 2, 1, ' ', PAL.black, [0.03, 0.05, 0.04]);
     if (chosen) term.fill(PX + 1, r, PW - 2, 1, ' ', PAL.black, PAL.green);
     term.text(x, r, hot ? '▸' : ' ', PAL.amber, chosen ? PAL.green : PAL.panel);
     term.text(x + 1, r, k < 10 ? String((k + 1) % 10) : '·', afford ? PAL.bright : PAL.dimmer, chosen ? PAL.green : PAL.panel);
@@ -440,7 +443,11 @@ function panelBuild(g, y, h) {
     const cap = nodeCapRps(key, 0, 1);
     term.field(x + 18, r, `${cap}/s`.padEnd(8), 8, chosen ? PAL.black : PAL.dim, chosen ? PAL.green : PAL.panel);
     term.field(x + 27, r, `q${def.queue}`.padEnd(7), 7, chosen ? PAL.black : PAL.dim, chosen ? PAL.green : PAL.panel);
-    if (def.serves.length) {
+    if (lockedByTut && !chosen) {
+      term.fill(x + 12, r, PW - 16, 1, ' ', PAL.black, [0.03, 0.05, 0.04]);
+      term.text(x + 12, r, '▓▓ LOCKED ▓▓', PAL.dimmer, [0.03, 0.05, 0.04]);
+    }
+    if (!lockedByTut && def.serves.length) {
       let cx = PX + PW - 3;
       for (const t of def.serves) { term.put(cx, r, TRAFFIC[t].glyph, chosen ? PAL.black : TYPE_COLOR[t], chosen ? PAL.green : PAL.panel); cx -= 2; }
     }
@@ -535,8 +542,11 @@ export function drawHelp(g) {
       ['SPACE', 'pause. The sim only advances on ticks: pause to think.'],
       ['= / -', 'run at 1x, 2x, 4x, 8x speed'],
       ['L', 'flow overlay: which links can still reach a server ([/] cycle type)'],
+      ['K', 'CODEX: every node, traffic type, mechanic, shift and key, with real numbers'],
+      ['N / T', 'tutorial: next step / start the tour again (locked steps say what they want)'],
       ['C / M', 'CRT filter / mute'],
       ['R / Q', 'restart the shift / abandon it and go back to the level list'],
+      ['ESC', 'cancel the cursor, then the wire, then the tutorial step'],
     ];
     term.text(lx, r++, 'CONTROLS', PAL.bright, bg);
     for (const [k, d] of keys) { term.text(lx + 2, r, k.padEnd(16), PAL.cyan, bg); term.text(lx + 19, r, d.slice(0, w - 24), PAL.green, bg); r++; }
@@ -680,13 +690,8 @@ export function drawTitle(g) {
     term.text(mx, y, label.padEnd(52), sel ? PAL.bright : it.locked ? PAL.dimmer : PAL.green, sel ? [0.06, 0.22, 0.12] : PAL.bg);
     term.text(mx + 56, y, it.note || '', it.locked ? PAL.dimmer : PAL.dim);
   }
-  term.text(tx, 12, '', PAL.dim);
-  const info = [
-    `shift seed  ${g.seedText || 'per-shift'}      progress  ${g.progressWon()}/${g.progressTotal()} shifts cleared`,
-    `webgl2 ${g.glInfo || 'renderer'}    ${COLS}x${ROWS} cells    vsync 60Hz    sim tick ${SIM.TICK_RATE}Hz`,
-  ];
-  term.text(tx, 30, info[0], PAL.dim);
-  term.text(tx, 31, info[1], PAL.dimmer);
+  term.text(tx, 12, `shift seed  ${g.seedText || 'per-shift'}      progress  ${g.progressWon()}/${g.progressTotal()} shifts cleared`.padEnd(tw), PAL.dim);
+  term.text(tx, 13, `webgl2 ${g.glInfo || 'renderer'}    ${COLS}x${ROWS} cells    vsync 60Hz    sim tick ${SIM.TICK_RATE}Hz`.padEnd(tw), PAL.dimmer);
   const box2 = [
     'HOW THIS WORKS',
     'Every request is a packet. Every packet needs a node that can finish it. Queues fill, capacity is finite,',
@@ -744,6 +749,13 @@ export function drawFrame(g) {
   panelBuild(g, BUILD_Y, ROWS - BUILD_Y);
   drawLog(g);
   drawStatusBar(g);
+  if (g.tut && g.tut.active) { drawSpotlight(g); drawTutorialCard(g); }
+}
+
+function dimAt(g, col, row) {
+  if (g.textPackets) return 1;
+  if (col < 0 || row < 0 || col >= COLS || row >= ROWS) return 1;
+  return g.term.dim[row * COLS + col];
 }
 
 /** Add packet sprites to the renderer batch. Called after drawFrame, before flush. */
@@ -762,7 +774,9 @@ export function drawPackets(g) {
       if (seen.has(key)) continue;
       seen.add(key);
       const t = P.type[p];
+      const d = g.term.dim[key];                             // put() resets dim, so remember it first
       g.term.put(col, row, TRAFFIC[t].glyph, TYPE_COLOR[t]);
+      g.term.dim[key] = d;                                   // packets stay dimmed outside the spotlight
     }
     return;
   }
@@ -776,9 +790,210 @@ export function drawPackets(g) {
     const col = TYPE_COLOR[P.type[p]];
     const px = (BX + x) * 8, py = (BY + y) * 16;
     const queued = P.wait[p] < P.age[p] - 2;                  // spent real time waiting in a queue
-    renderer.sprite(px, py, 15, col, 0.14);                  // halo
-    renderer.sprite(px, py, 4.2, col, queued ? 0.75 : 1.0);
+    const d = dimAt(g, Math.floor(BX + x), Math.floor(BY + y));
+    renderer.sprite(px, py, 15, col, 0.14 * d);               // halo
+    renderer.sprite(px, py, 4.2, col, (queued ? 0.75 : 1.0) * (d > 1 ? 1 : d));
   }
   // cursor highlight ring
   if (g.ui.placeKey) renderer.sprite((BX + g.ui.cursorX + 7.5) * 8, (BY + g.ui.cursorY + 2) * 16, 13, PAL.cyan, 0.1);
+}
+
+// --------------------------------------------------------------------------- tutorial support
+/** Rects for the fixed panels, so the tutorial can point at them. */
+export const PANEL_RECT = {
+  OBJECTIVES: [PX, 1, PW, 8],
+  FLOW: [PX, 9, PW, 12],
+  INSPECTOR: [PX, 21, PW, BUILD_Y - 21],
+  BUILD: [PX, BUILD_Y, PW, ROWS - BUILD_Y],
+  LOG: [0, LOG_Y, WORLD_W, 4],
+};
+
+/** The BUILD panel row for a node key, or null. */
+export function itemRect(g, key) {
+  const list = (g.level && g.level.unlock) || [];
+  const k = list.indexOf(key);
+  if (k < 0) return null;
+  return [PX, BUILD_Y + 1 + k, PW, 1];
+}
+
+/** Resolve the current tutorial step's focus descriptors into cell rects. */
+export function focusRects(g) {
+  const out = [];
+  const step = g.tut && g.tut.step;
+  if (!step || !step.focus) return out;
+  for (const f of step.focus) {
+    if (f.board) out.push(f.board);
+    else if (f.zone) out.push(f.zone);
+    else if (f.panel && PANEL_RECT[f.panel]) out.push(PANEL_RECT[f.panel]);
+    else if (f.item) { const r = itemRect(g, f.item); if (r) out.push(r); }
+    else if (f.nodes) {
+      const n = g.sim.nodes;
+      let x0 = 1e9, y0 = 1e9, x1 = -1e9, y1 = -1e9;
+      for (const key of f.nodes) {
+        const t = NODE[key];
+        for (let i = 0; i < n.count; i++) {
+          if (n.state[i] === 0 || n.type[i] !== t) continue;
+          x0 = Math.min(x0, n.x[i]); y0 = Math.min(y0, n.y[i]);
+          x1 = Math.max(x1, n.x[i] + n.w[i]); y1 = Math.max(y1, n.y[i] + n.h[i]);
+        }
+      }
+      if (x1 > x0) out.push([x0 - 1, y0 - 1, x1 - x0 + 2, y1 - y0 + 2]);
+    }
+  }
+  return out;
+}
+
+function rectsOverlap(a, b) {
+  return a[0] < b[0] + b[2] && b[0] < a[0] + a[2] && a[1] < b[1] + b[3] && b[1] < a[1] + a[3];
+}
+
+/** Dim everything that is not the point of the current step, then ring what is. */
+export function drawSpotlight(g) {
+  const rects = focusRects(g);
+  if (!rects.length) return;
+  const { term, sim } = g;
+  term.dimOutside(rects, 0.34);
+  const t = sim.tick;
+  const pulsing = (t >> 3) & 1;
+  const col = pulsing ? PAL.amber : lerp(PAL.amber, PAL.white, 0.4);
+  for (const r of rects) {
+    const [x, y, w, h] = r;
+    // The right-hand panels are pointed at by contrast alone: a ring there would sit on top of the very
+    // rows it is highlighting (a BUILD item is one cell high).
+    if (x >= PX - 1) continue;
+    if (w >= WORLD_W && h >= WORLD_H) continue;              // "the whole board": nothing to ring
+    const x0 = Math.max(0, x - 1), y0 = Math.max(0, y - 1);
+    const x1 = Math.min(COLS - 1, x + w), y1 = Math.min(ROWS - 1, y + h);
+    const dash = (i) => ((i + (t >> 2)) % 3 === 0 ? ' ' : '─');
+    for (let i = x0 + 1; i < x1; i++) {
+      term.put(i, y0, dash(i), col);
+      term.put(i, y1, dash(i), col);
+    }
+    for (let j = y0 + 1; j < y1; j++) {
+      term.put(x0, j, ((j + (t >> 2)) % 3 === 0 ? ' ' : '│'), col);
+      term.put(x1, j, ((j + (t >> 2)) % 3 === 0 ? ' ' : '│'), col);
+    }
+    term.put(x0, y0, '◆', col); term.put(x1, y0, '◆', col);
+    term.put(x0, y1, '◆', col); term.put(x1, y1, '◆', col);
+    if (pulsing && y0 > 0) term.put(x0 + ((x1 - x0) >> 1), y0 - 1, '▼', col);
+  }
+}
+
+/** The step card: title, body, progress and the NEXT / END buttons. */
+export function drawTutorialCard(g) {
+  const tut = g.tut;
+  const s = tut && tut.step;
+  if (!s) return;
+  const { term } = g;
+  const W = 78, H = 11;
+  const focus = focusRects(g);
+  const candidates = [[2, 33], [38, 33], [2, 2], [38, 2], [1, 20]];
+  const fits = (x, y) => !focus.some((r) => rectsOverlap([x - 1, y - 1, W + 2, H + 2], r));
+  const [x, y] = candidates.find(([cx, cy]) => fits(cx, cy)) || candidates[0];
+  const bg = [0.02, 0.08, 0.05];
+  term.fill(x, y, W, H, ' ', PAL.bright, bg);
+  term.box(x, y, W, H, PAL.amber, bg, true);
+  const head = ` TUTORIAL · STEP ${tut.number}/${tut.total} `;
+  term.text(x + 3, y, head, PAL.black, PAL.amber);
+  const flash = tut.pending > 0 && ((g.sim.tick >> 3) & 1);
+  term.text(x + 3 + head.length + 1, y, flash ? '✓ DONE' : '', PAL.green, bg);
+  term.text(x + 2, y + 1, s.title, PAL.bright, bg);
+  let r = y + 2;
+  for (const line of wrap((s.card || []).join(' '), W - 5, 5)) { term.text(x + 2, r++, line, PAL.green, bg); }
+  // progress dots
+  r = y + H - 3;
+  term.text(x + 2, r, '▓'.repeat(tut.number) + '░'.repeat(Math.max(0, tut.total - tut.number)), PAL.amber, bg);
+  term.text(x + 2 + tut.total + 1, r, `${tut.number}/${tut.total}`, PAL.dim, bg);
+  // buttons
+  const by = y + H - 2;
+  const b1 = s.check ? '[N] SKIP TO NEXT STEP' : '[N] NEXT';
+  term.text(x + 2, by, b1, PAL.black, PAL.green);
+  term.text(x + 2 + b1.length + 3, by, '[ESC] END TUTORIAL', PAL.black, [0.55, 0.3, 0.15]);
+  term.text(x + W - 12, by, '[K] CODEX', PAL.cyan, bg);
+  g.hitboxes.push({ x: x + 1, y: by, w: b1.length + 2, h: 1, id: 'tut-next' });
+  g.hitboxes.push({ x: x + 2 + b1.length + 2, y: by, w: 18, h: 1, id: 'tut-skip' });
+}
+
+// --------------------------------------------------------------------------- codex
+export function drawCodex(g) {
+  const { term } = g;
+  term.clear();
+  const cx = g.codex;
+  const { x, y, w, h } = overlayFrame(term, ' CODEX ', COLS - 6, ROWS - 2);
+  const bg = [0.01, 0.05, 0.03];
+  const prog = cx.progress;
+  const counter = `${prog.seen}/${prog.total} ENTRIES`;
+
+  // tabs
+  let tx = x + 3;
+  for (let i = 0; i < cx.tabs.length; i++) {
+    const tab = cx.tabs[i];
+    const label = ` [${i + 1}] ${tab.name} `;
+    const on = i === cx.tab;
+    term.text(tx, y + 1, label, on ? PAL.black : PAL.dim, on ? PAL.cyan : bg);
+    g.hitboxes.push({ x: tx, y: y + 1, w: label.length, h: 1, id: 'codex-tab:' + i });
+    tx += label.length + 1;
+  }
+  term.hline(x + 2, y + 2, w - 4, '─', PAL.dim, bg);
+
+  // list
+  const lx = x + 3, lw = 46;
+  const listY = y + 4, listH = h - 8;
+  const entries = cx.entries;
+  const scroll = Math.max(0, Math.min(cx.row - ((listH - 1) >> 1), Math.max(0, entries.length - listH)));
+  for (let k = 0; k < listH; k++) {
+    const i = scroll + k;
+    const e = entries[i];
+    if (!e) break;
+    const sel = i === cx.row;
+    const fg = e.locked ? PAL.dimmer : sel ? PAL.black : PAL.green;
+    const rowBg = sel ? PAL.cyan : bg;
+    term.field(lx, listY + k, (sel ? '▸ ' : '  ') + e.title, lw, fg, rowBg);
+    term.text(lx + lw - 6, listY + k, e.locked ? 'LOCKED' : e.seen ? '  ✓  ' : '     ', e.locked ? PAL.dimmer : PAL.amber, rowBg);
+    g.hitboxes.push({ x: lx - 1, y: listY + k, w: lw, h: 1, id: 'codex-row:' + i });
+  }
+  if (entries.length > listH) term.text(lx, listY + listH - 1, `  … ${entries.length - listH} more (↓)`, PAL.dimmer, bg);
+
+  // detail
+  const dx = x + 3 + lw + 3, dw = w - (lw + 10);
+  const sel = entries[cx.row] || entries[0];
+  term.vline(dx - 2, y + 4, h - 8, '│', PAL.dim, bg);
+  if (sel) {
+    term.text(dx, y + 4, sel.title, PAL.bright, bg);
+    if (sel.sub) term.text(dx, y + 5, sel.sub, PAL.amber, bg);
+    let r = y + 7;
+    if (sel.locked) {
+      term.text(dx, r++, '▓▓▓ ENTRY LOCKED ▓▓▓', PAL.dimmer, bg);
+      r++;
+      for (const line of wrap(sel.unlock || 'Play a little more to unlock this entry.', dw - 2, 3)) term.text(dx, r++, line, PAL.dim, bg);
+    } else {
+      if (sel.meta && sel.meta.length) {
+        for (let i = 0; i < sel.meta.length; i += 2) {
+          const [k1, v1] = sel.meta[i];
+          const [k2, v2] = sel.meta[i + 1] || ['', ''];
+          term.text(dx, r, (k1 + ':').padEnd(12), PAL.dim, bg);
+          term.field(dx + 12, r, v1, 20, PAL.green, bg);
+          if (k2) { term.text(dx + 34, r, (k2 + ':').padEnd(12), PAL.dim, bg); term.field(dx + 46, r, v2, dw - 48, PAL.green, bg); }
+          r++;
+          if (r > y + h - 3) break;
+        }
+        r++;
+      }
+      const bottom = y + h - 2;
+      if (!(sel.meta && sel.meta.length)) r = Math.min(r, y + 6);
+      for (const para of sel.body || []) {
+        if (r > bottom) break;
+        if (para === '') { r++; continue; }
+        for (const line of wrap(para, dw - 2, 99)) { if (r > bottom) break; term.text(dx, r++, line, PAL.green, bg); }
+        r++;
+      }
+    }
+  }
+  term.fill(x + 1, y + h - 1, w - 2, 1, ' ', PAL.bright, PAL.head);
+  term.text(x + 3, y + h - 1, '[↑↓] entry   [←→] or [1-5] tab   [K]/[ESC] close', PAL.bright, PAL.head);
+  const hint = (cx.hint || '').slice(0, 40);
+  const right = hint ? counter + '   ' + hint : counter;
+  term.text(x + w - 3 - right.length, y + h - 1, right, PAL.amber, PAL.head);
+  term.text(x + w - 7, y, ' X ', PAL.black, PAL.red);
+  g.hitboxes.push({ x: x + w - 7, y, w: 3, h: 1, id: 'codex-close' });
 }

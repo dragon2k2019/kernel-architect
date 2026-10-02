@@ -3,6 +3,7 @@
 // 160x50 cells, 8x16 pixels each (1280x800). Everything is a glyph + foreground + background, so the
 // HUD is built with the same primitives a real TUI would use. The renderer turns this into one draw call.
 
+export const MAX_DIM = 0.34;   // how dark the tutorial makes everything that is not the current step
 export const PAL = {
   bg: [0, 0.035, 0.02],
   panel: [0.02, 0.09, 0.055],
@@ -32,6 +33,7 @@ export class Term {
     this.fg = new Array(n);
     this.bg = new Array(n);
     this.bgi = new Float32Array(n).fill(1);
+    this.dim = new Float32Array(n).fill(1);       // multiplies fg and bg at draw time
     this.clear();
   }
 
@@ -40,6 +42,7 @@ export class Term {
     this.fg.fill(PAL.dim);
     this.bg.fill(bg);
     this.bgi.fill(1);
+    this.dim.fill(1);
   }
 
   inBounds(x, y) { return x >= 0 && y >= 0 && x < this.cols && y < this.rows; }
@@ -52,6 +55,7 @@ export class Term {
     if (!this.inBounds(x, y)) return;
     const i = y * this.cols + x;
     this.ch[i] = glyph; this.fg[i] = fg; this.bg[i] = bg; this.bgi[i] = bgi;
+    this.dim[i] = 1;                              // freshly written cells are always full brightness
   }
 
   text(x, y, str, fg = PAL.green, bg = PAL.bg, bgi = 1) {
@@ -104,6 +108,22 @@ export class Term {
       const used = title.length + 4;
       for (let i = x + 3 + used; i < x + w - 1; i++) this.put(i, y, '─', fg, bg);
       this.put(x + 3 + used - 1, y, '├', fg, bg);
+    }
+  }
+
+  /** Brightness multiplier queued for a cell (1 = full, MAX_DIM = spotlit out). */
+  dimAt(x, y) { return this.dim[y * this.cols + x]; }
+
+  /** Dim every cell that is not inside one of the given rects ([x, y, w, h] in cells). */
+  dimOutside(rects, mul = MAX_DIM) {
+    for (let y = 0; y < this.rows; y++) {
+      for (let x = 0; x < this.cols; x++) {
+        let inside = false;
+        for (const r of rects) {
+          if (x >= r[0] && x < r[0] + r[2] && y >= r[1] && y < r[1] + r[3]) { inside = true; break; }
+        }
+        if (!inside) this.dim[y * this.cols + x] = mul;
+      }
     }
   }
 

@@ -13,25 +13,26 @@ layout(location=1) in vec4 aRect;                // x, y, w, h in pixels
 layout(location=2) in vec4 aUV;                  // u0, v0, u1, v1
 layout(location=3) in vec4 aFg;                  // rgb + mode (0 = glyph, 1 = sprite)
 layout(location=4) in vec4 aBg;                  // rgb + intensity
+layout(location=5) in vec4 aTint;                // fg dim, bg dim (tutorial spotlight)
 uniform vec2 uRes;
-out vec2 vUV; out vec4 vFg; out vec4 vBg;
+out vec2 vUV; out vec4 vFg; out vec4 vBg; out vec2 vTint;
 void main() {
   vec2 p = aRect.xy + aCorner * aRect.zw;
   vec2 clip = vec2(p.x / uRes.x * 2.0 - 1.0, 1.0 - p.y / uRes.y * 2.0);
   gl_Position = vec4(clip, 0.0, 1.0);
   vUV = mix(aUV.xy, aUV.zw, aCorner);
-  vFg = aFg; vBg = aBg;
+  vFg = aFg; vBg = aBg; vTint = aTint.xy;
 }`;
 
 const FS = `#version 300 es
 precision highp float;
-in vec2 vUV; in vec4 vFg; in vec4 vBg;
+in vec2 vUV; in vec4 vFg; in vec4 vBg; in vec2 vTint;
 uniform sampler2D uAtlas;
 out vec4 outColor;
 void main() {
   float a = texture(uAtlas, vUV).r;
   if (vFg.w < 0.5) {                              // glyph cell
-    outColor = vec4(mix(vBg.rgb, vFg.rgb, a), 1.0);
+    outColor = vec4(mix(vBg.rgb * vTint.y, vFg.rgb * vTint.x, a), 1.0);
   } else {                                        // packet sprite: soft round dot
     vec2 d = vUV - 0.5;
     float r = length(d) * 2.0;
@@ -111,7 +112,7 @@ export class Renderer {
     this.uAtlas = gl.getUniformLocation(this.prog, 'uAtlas');
 
     // ---- instance buffer: 12 floats per instance
-    this.floatsPer = 16;   // x,y,w,h | u0,v0,u1,v1 | fg.rgb,mode | bg.rgb,intensity
+    this.floatsPer = 20;   // x,y,w,h | u0,v0,u1,v1 | fg.rgb,mode | bg.rgb,intensity | fgMul,bgMul,0,0
     this.cap = 24000;
     this.buf = gl.createBuffer();
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
@@ -133,7 +134,7 @@ export class Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.bindBuffer(gl.ARRAY_BUFFER, this.buf);
     const stride = this.floatsPer * 4;
-    const attrs = [[1, 4, 0], [2, 4, 16], [3, 4, 32], [4, 4, 48]];
+    const attrs = [[1, 4, 0], [2, 4, 16], [3, 4, 32], [4, 4, 48], [5, 4, 64]];
     for (const [loc, size, off] of attrs) {
       gl.enableVertexAttribArray(loc);
       gl.vertexAttribPointer(loc, size, gl.FLOAT, false, stride, off);
@@ -176,22 +177,23 @@ export class Renderer {
 
   begin() { this.count = 0; this.spriteStart = -1; }
 
-  push(x, y, w, h, gu, gv, gu2, gv2, fr, fg, fb, mode, br, bg, bb, bi) {
+  push(x, y, w, h, gu, gv, gu2, gv2, fr, fg, fb, mode, br, bg, bb, bi, fgMul = 1, bgMul = 1) {
     if (this.count >= this.cap) return;
     const a = this.cpu, o = this.count * this.floatsPer;
     a[o] = x; a[o + 1] = y; a[o + 2] = w; a[o + 3] = h;
     a[o + 4] = gu; a[o + 5] = gv; a[o + 6] = gu2; a[o + 7] = gv2;
     a[o + 8] = fr; a[o + 9] = fg; a[o + 10] = fb; a[o + 11] = mode;
     a[o + 12] = br; a[o + 13] = bg; a[o + 14] = bb; a[o + 15] = bi;
+    a[o + 16] = fgMul; a[o + 17] = bgMul; a[o + 18] = 0; a[o + 19] = 0;
     this.count++;
   }
 
-  /** Queue one terminal cell. fg/bg are [r,g,b] in 0..1. */
-  cell(col, row, glyph, fg, bg, bgI = 1) {
+  /** Queue one terminal cell. fg/bg are [r,g,b] in 0..1; dim multiplies both (tutorial spotlight). */
+  cell(col, row, glyph, fg, bg, bgI = 1, dim = 1) {
     const gi = glyphIndex(glyph);
     const u = (gi % ATLAS_COLS) / ATLAS_COLS, v = Math.floor(gi / ATLAS_COLS) / ATLAS_ROWS;
     this.push(col * GLYPH_W, row * GLYPH_H, GLYPH_W, GLYPH_H, u, v, u + 1 / ATLAS_COLS, v + 1 / ATLAS_ROWS,
-      fg[0], fg[1], fg[2], 0, bg[0], bg[1], bg[2], bgI);
+      fg[0], fg[1], fg[2], 0, bg[0], bg[1], bg[2], bgI, dim, dim);
   }
 
   /** Queue a packet sprite at pixel coordinates. */

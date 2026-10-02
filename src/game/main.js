@@ -15,6 +15,8 @@ import {
 import { Rng, streamSeed, toHex8 } from '../core/rng.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
+import { Tutorial } from './tutorial.js';
+import { CODEX_TABS, codexEntries, codexProgress } from './codex.js';
 
 const SAVE_KEY = 'kernelarchitect.save.v1';
 const SPEEDS = [1, 2, 4, 8];
@@ -35,6 +37,11 @@ class Game {
     this.crt = saved.crt !== false;
     this.audio.muted = !!saved.muted;
     this.seedPref = saved.seedPref || null;
+    this.tutMode = saved.tutMode || 'first';          // off | first | all
+    this.tutDone = saved.tutDone || {};               // level id -> 1 once a tour has been finished or skipped
+    this.tut = null;
+    this.codexSeen = saved.codexSeen || { nodes: {}, traffic: {} };
+    this.hitboxes = [];
 
     this.screen = 'title';
     this.screenBack = 'title';
@@ -59,6 +66,7 @@ class Game {
       localStorage.setItem(SAVE_KEY, JSON.stringify({
         progress: this.progress, practice: this.practice, crt: this.crt,
         muted: this.audio.muted, seedPref: this.seedPref,
+        tutMode: this.tutMode, tutDone: this.tutDone, codexSeen: this.codexSeen,
       }));
     } catch (e) { /* private mode: the run still works, it just will not be remembered */ }
   }
@@ -93,10 +101,17 @@ class Game {
         label: 'PRACTICE MODE', note: this.practice ? 'ON — every shift unlocked' : 'OFF — shifts unlock in order',
         action: () => { this.practice = !this.practice; this.save(); },
       });
+      items.push({ label: 'CODEX', note: `every number in the game, and where it came from (${this.codexProgressOf().seen}/${this.codexProgressOf().total} found)`, action: () => this.openCodex() });
+      items.push({
+        label: 'TUTORIAL', note: TUT_NOTE[this.tutMode] || '',
+        action: () => { this.tutMode = TUT_MODES[(TUT_MODES.indexOf(this.tutMode) + 1) % TUT_MODES.length]; this.save(); },
+      });
       items.push({ label: 'HELP', note: 'controls • node table • traffic table', action: () => this.gotoHelp('title') });
       items.push({
-        label: 'RESET PROGRESS', note: 'forget every star',
-        action: () => this.confirm('Erase all stars and unlocks?', () => { this.progress = {}; this.save(); }),
+        label: 'RESET PROGRESS', note: 'forget every star, unlock and codex discovery',
+        action: () => this.confirm('Erase all stars, unlocks and codex discoveries?', () => {
+          this.progress = {}; this.codexSeen = { nodes: {}, traffic: {} }; this.tutDone = {}; this.save();
+        }),
       });
       return items;
     }
@@ -110,6 +125,7 @@ class Game {
       });
       items.push({ label: 'DAILY SHIFT', note: this.dailyLabel() + ' — same run for everyone', brief: 'One seed, one shift, one shot everyone plays the same traffic and the same incidents.', teaches: 'Nothing new: read the flow overlay before you commit money.', locked: false, action: () => this.startDaily() });
       items.push({ label: 'ENDLESS SHIFT', note: 'ramps forever, score = requests served', brief: ENDLESS.brief, teaches: ENDLESS.teaches, locked: false, action: () => this.startEndless() });
+      items.push({ label: 'CODEX', note: `nodes • traffic • mechanics • shifts • controls (${this.codexProgressOf().seen}/${this.codexProgressOf().total})`, brief: 'Every number in the game, with the formula it came from. Entries unlock as you meet them.', teaches: 'Read it between shifts: the locked entries tell you what the game still has to show you.', locked: false, action: () => this.openCodex() });
       items.push({ label: '← BACK TO TITLE', note: '', locked: false, action: () => this.goto('title') });
       return items;
     }
@@ -139,6 +155,7 @@ class Game {
         this.sim.incidentI = 0;
       }
     }
+    this.tut = new Tutorial(level, this.tutMode, { completed: !!this.tutDone[level.id] });
     this.afterStart();
   }
   startDaily() {
@@ -166,6 +183,7 @@ class Game {
   // ------------------------------------------------------------------ input
   handleInput(presses, clicks) {
     const ui = this.ui;
+    if (ui.codexOpen) { this.codexInput(presses, clicks); return; }
     if (ui.confirm) {
       for (const k of presses) {
         if (k === 'enter' || k === 'y') { const a = ui.confirm.action; ui.confirm = null; if (a) a(); }
@@ -243,6 +261,7 @@ class Game {
       if (k === 'r') { this.startLevel(this.level, this.sim.seed); return; }
       if (k === 'q' || k === 'escape') { this.goto('levels'); return; }
       if (k === 'h' || k === '?') { this.gotoHelp('post'); return; }
+      if (k === 'k') { this.openCodex(); return; }
       if (k === 'm') { this.audio.muted = !this.audio.muted; this.save(); }
     }
     if (clicks.length) {
@@ -263,8 +282,12 @@ class Game {
         case 'escape':
           if (ui.placeKey) { ui.placeKey = null; }
           else if (ui.wireFrom >= 0) { ui.wireFrom = -1; ui.wireTo = -1; }
+          else if (this.tut && this.tut.active) this.endTutorial();
           else ui.sel = -1;
           break;
+        case 'k': this.openCodex(); break;
+        case 'n': this.nextTutStep(); break;
+        case 't': this.restartTutorial(); break;
         case 'tab': {
           const list = this.level.unlock;
           ui.buildIdx = (ui.buildIdx + 1) % list.length;
@@ -341,6 +364,10 @@ class Game {
     }
     for (const c of clicks) {
       if (c.button === 2) { ui.placeKey = null; ui.wireFrom = -1; ui.wireTo = -1; continue; }
+      // the tutorial card's own buttons
+      const id = this.hitboxAt(c.x, c.y);
+      if (id === 'tut-next') { this.nextTutStep(); continue; }
+      if (id === 'tut-skip') { this.endTutorial(); continue; }
       // build panel
       if (c.x >= HUD.PX) {
         const k = c.y - (HUD.BUILD_Y + 1);
@@ -365,6 +392,7 @@ class Game {
     const ui = this.ui;
     const key = (this.level.unlock || [])[k];
     if (!key) return;
+    if (!this.gate('pick', { key }).ok) return;
     const def = NODES[NODE[key]];
     ui.buildIdx = k;
     ui.placeKey = key;
@@ -379,6 +407,7 @@ class Game {
   commitPlace() {
     const ui = this.ui;
     if (!ui.placeKey) return;
+    if (!this.gate('place', { key: ui.placeKey, x: ui.cursorX, y: ui.cursorY }).ok) return;
     const res = this.sim.do('place', { type: ui.placeKey, x: ui.cursorX, y: ui.cursorY });
     if (res.ok) {
       ui.sel = res.i; ui.note = '';
@@ -396,6 +425,7 @@ class Game {
     const a = ui.wireFrom, b = ui.wireTo;
     ui.wireFrom = -1; ui.wireTo = -1;
     if (a < 0 || b < 0 || a === b) return;
+    if (!sim.isConnected(a, b) && !this.gate('wire', { a, b }).ok) return;
     const n = sim.nodes;
     if (sim.isConnected(a, b)) {
       const res = sim.do('disconnect', { a, b });
@@ -410,6 +440,7 @@ class Game {
   op(op, args) {
     const ui = this.ui;
     if (op !== 'place' && (ui.sel < 0 || this.sim.nodes.state[ui.sel] === 0)) { this.note('Select a node first (click it).'); return; }
+    if (op !== 'place' && !this.gate('op', { op, i: ui.sel }).ok) return;
     const res = this.sim.do(op, args);
     if (!res.ok) this.note(res.err);
     else {
@@ -419,6 +450,101 @@ class Game {
       if (op === 'remove') ui.sel = -1;
       if (op === 'auto') this.audio.play('scale'); else this.audio.play('wire');
     }
+  }
+
+  // ------------------------------------------------------------------ tutorial
+  /** The tutorial only ever looks at the simulation. */
+  tutCtx() { return { sim: this.sim }; }
+  markTutDone() {
+    if (this.level && this.tut && this.tut.total) { this.tutDone[this.level.id] = 1; this.save(); }
+  }
+  /** Restart (or start) the guided tour for the shift that is on screen. */
+  restartTutorial() {
+    this.tut = new Tutorial(this.level, this.tutMode, { completed: false });
+    if (!this.tut.total) { this.note('No guided steps for this shift — press [K] for the CODEX instead.'); return; }
+    this.note('Tour restarted.');
+    this.audio.play('click');
+  }
+  nextTutStep() {
+    if (!this.tut || !this.tut.active) { this.note('No tutorial running — press [T] to start one.'); return; }
+    this.tut.next();
+    this.audio.play('click');
+    if (!this.tut.active) { this.markTutDone(); this.note('Tour finished. Press [K] for the CODEX.'); }
+  }
+  endTutorial() {
+    if (this.tut && this.tut.active) { this.tut.skipAll(); this.markTutDone(); this.note('Tutorial ended — press [T] to bring it back.'); }
+  }
+  /** Refuses anything the current step has locked, with the step's own hint. */
+  gate(kind, payload) {
+    if (!this.tut || !this.tut.active) return { ok: true };
+    const res = this.tut.gate(kind, payload, { sim: this.sim });
+    if (!res.ok) { this.note(res.err); this.audio.play('drop'); }
+    return res;
+  }
+
+  // ------------------------------------------------------------------ codex
+  seen() {
+    const seen = { nodes: {}, traffic: {} };
+    const sim = this.sim;
+    if (sim) {
+      for (let i = 0; i < sim.nodes.count; i++) {
+        if (sim.nodes.state[i] === 0) continue;
+        const info = sim.nodeInfo(i);
+        if (info && info.key) seen.nodes[info.key] = true;
+      }
+      for (let t = 0; t < TRAFFIC.length; t++) {
+        if (sim.doneByType[t] > 0 || sim.dropByType[t] > 0 || (sim.rateNow && sim.rateNow[t] > 0)) seen.traffic[TRAFFIC[t].key] = true;
+      }
+    }
+    return seen;
+  }
+  codexCtx() {
+    return { seen: mergeSeen(this.codexSeen, this.seen()), progress: this.progress };
+  }
+  codexProgressOf() { return codexProgress(this.codexCtx()); }
+  openCodex() {
+    this.codexSeen = mergeSeen(this.codexSeen, this.seen());   // remember discoveries across shifts
+    this.save();
+    this.ui.codexOpen = true;
+    this.ui.codexTab = clampI(this.ui.codexTab | 0, 0, CODEX_TABS.length - 1);
+    this.ui.codexRow = 0;
+    this.codexWasPaused = this.paused;
+    if (this.screen === 'play') this.paused = true;            // read it while the shift stands still
+    this.audio.play('click');
+  }
+  closeCodex() {
+    this.ui.codexOpen = false;
+    if (this.screen === 'play') this.paused = !!this.codexWasPaused;
+    this.audio.play('click');
+  }
+  codexEntriesNow() { return codexEntries(CODEX_TABS[this.ui.codexTab].id, this.codexCtx()); }
+  codexInput(presses, clicks) {
+    const ui = this.ui;
+    const entries = this.codexEntriesNow();
+    for (const k of presses) {
+      if (k === 'k' || k === 'escape' || k === 'q') { this.closeCodex(); continue; }
+      if (k === 'ArrowUp' || k === 'w') ui.codexRow = Math.max(0, ui.codexRow - 1);
+      else if (k === 'ArrowDown' || k === 's') ui.codexRow = Math.min(entries.length - 1, ui.codexRow + 1);
+      else if (k === 'ArrowLeft' || k === 'a') { ui.codexTab = (ui.codexTab + CODEX_TABS.length - 1) % CODEX_TABS.length; ui.codexRow = 0; }
+      else if (k === 'ArrowRight' || k === 'd') { ui.codexTab = (ui.codexTab + 1) % CODEX_TABS.length; ui.codexRow = 0; }
+      else if (k.length === 1 && k >= '1' && k <= '9') { const i = +k - 1; if (i < CODEX_TABS.length) { ui.codexTab = i; ui.codexRow = 0; } }
+      else if (k === 'h' || k === '?') this.closeCodex();
+    }
+    for (const c of clicks) {
+      const id = this.hitboxAt(c.x, c.y);
+      if (!id) continue;
+      if (id === 'codex-close') { this.closeCodex(); continue; }
+      if (id.startsWith('codex-tab:')) { ui.codexTab = clampI(+id.split(':')[1] | 0, 0, CODEX_TABS.length - 1); ui.codexRow = 0; }
+      else if (id.startsWith('codex-row:')) ui.codexRow = clampI(+id.split(':')[1] | 0, 0, Math.max(0, entries.length - 1));
+      this.audio.play('click');
+    }
+  }
+  hitboxAt(x, y) {
+    for (let i = this.hitboxes.length - 1; i >= 0; i--) {
+      const h = this.hitboxes[i];
+      if (x >= h.x && x < h.x + h.w && y >= h.y && y < h.y + h.h) return h.id;
+    }
+    return null;
   }
 
   // ------------------------------------------------------------------ loop
@@ -460,6 +586,11 @@ class Game {
       }
     }
     if (this.sim.dropped > this.lastDropped) { this.lastDropped = this.sim.dropped; this.audio.play('drop'); }
+    if (this.tut && this.tut.total) {
+      const was = this.tut.active;
+      this.tut.tick(this.tutCtx());
+      if (was && !this.tut.active) { this.markTutDone(); this.note('Tour finished — press [K] for the CODEX.'); }
+    }
     if (this.sim.tick % 30 === 0) this.hashHex = toHex8(this.sim.hash());
     if (this.sim.state !== 'running') this.onFinish();
   }
@@ -490,7 +621,15 @@ class Game {
       practice: this.practice, muted: this.audio.muted, crt: this.crt,
       seedText: this.seedPref ? '0x' + toHex8(this.seedPref) : 'per-shift (fixed)',
       textPackets: !!this.textPackets,
+      tut: this.screen === 'play' && this.tut && this.tut.active ? this.tut : null,
+      codex: this.ui.codexOpen ? {
+        tabs: CODEX_TABS, tab: this.ui.codexTab, row: this.ui.codexRow,
+        entries: this.codexEntriesNow(), progress: this.codexProgressOf(),
+        hint: 'unlocked as you meet them · [K] closes',
+      } : null,
+      hitboxes: [],
     };
+    this.hitboxes = g.hitboxes;
     this.renderer.crt = this.crt ? 1 : 0;
     this.renderer.begin();
     if (this.screen === 'title') HUD.drawTitle(g);
@@ -500,6 +639,7 @@ class Game {
       if (this.screen === 'post') HUD.drawPostmortem(g);
     }
     if (this.screen === 'help') { this.term.clear(); HUD.drawHelp(g); }
+    if (g.codex) HUD.drawCodex(g);
     if (this.ui.confirm) this.drawConfirm();
     if (this.ui.note) this.drawNote();
 
@@ -510,7 +650,7 @@ class Game {
         this.renderer.cell(x, y, this.term.ch[i], this.term.fg[i], this.term.bg[i], this.term.bgi[i]);
       }
     }
-    if (this.screen === 'play' && this.sim) HUD.drawPackets(g);
+    if (this.screen === 'play' && this.sim && !this.ui.codexOpen) HUD.drawPackets(g);
     this.renderer.flush(this.time);
   }
 
@@ -541,7 +681,23 @@ function freshUi() {
   return {
     sel: -1, hover: -1, placeKey: null, buildIdx: 0, cursorX: 52, cursorY: 20, wireFrom: -1, wireTo: -1,
     menu: 0, helpPage: 0, flow: false, flowType: 1, confirm: null, note: '', noteUntil: undefined, followMouse: true,
+    codexOpen: false, codexTab: 0, codexRow: 0,
   };
+}
+const TUT_MODES = ['first', 'all', 'off'];
+const TUT_NOTE = {
+  first: 'ON (guided opening) — L01-L03 walk you through it',
+  all: 'ON (every shift) — a short tour of each shift\u2019s new box',
+  off: 'OFF — nothing is locked, play it your way',
+};
+/** Merge discovery maps (codex entries stay discovered once they have been met). */
+function mergeSeen(a, b) {
+  const out = { nodes: Object.assign({}, a && a.nodes), traffic: Object.assign({}, a && a.traffic) };
+  for (const kind of ['nodes', 'traffic']) {
+    const src = (b && b[kind]) || {};
+    for (const k of Object.keys(src)) if (src[k]) out[kind][k] = true;
+  }
+  return out;
 }
 function ui_(game, d) {
   const items = game.items || [];

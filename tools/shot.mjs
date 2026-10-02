@@ -3,6 +3,9 @@
 //   node tools/shot.mjs                 # L01, reference build, 25 s in, colour if the terminal supports it
 //   node tools/shot.mjs L05 900         # level id + how many simulated seconds to run
 //   node tools/shot.mjs --screen title  # title / levels / help / post screens
+//   node tools/shot.mjs --screen tut    # a tutorial step: spotlit zone, dimmed board, step card
+//   node tools/shot.mjs --screen codex  # the codex, with some entries unlocked and some still locked
+//   node tools/shot.mjs --screen codex --tab 3   # ...on a specific tab (1 nodes, 2 traffic, 3 mechanics, 4 shifts, 5 controls)
 //   node tools/shot.mjs --plain         # no ANSI colour (redirect to a file, or paste into a doc)
 //
 // This is a development tool: it boots the actual game under tests/stub.mjs, drives it with the same
@@ -33,7 +36,27 @@ game.textPackets = true;      // packets are drawn as glyphs: a terminal has no 
 if (screen === 'title') { pump(3); }
 else if (screen === 'levels') { game.screen = 'levels'; pump(2); }
 else if (screen === 'help') { game.gotoHelp('title'); pump(2); }
-else {
+else if (screen === 'tut') {
+  game.tutMode = 'all';                            // show the per-shift tour too, on any level
+  game.startLevel(level);
+  game.tut.next();                                // step 2 of L01: place the app server
+  game.ui.placeKey = 'COMPUTE';
+  game.ui.cursorX = 34; game.ui.cursorY = 16;
+  pump(2);
+} else if (screen === 'codex') {
+  game.startLevel(level);
+  const ids = { net: 0 };
+  for (const [name, type, x, y] of [['app', 'COMPUTE', 26, 18], ['db', 'SQL', 56, 18]]) ids[name] = game.sim.do('place', { type, x, y }).i;
+  game.sim.do('connect', { a: 0, b: ids.app });
+  game.sim.do('connect', { a: ids.app, b: ids.db });
+  game.sim.incidents = [];
+  game.tut = null;
+  while (game.sim.tick < 20 * 60 && game.sim.state === 'running') game.sim.step();
+  game.openCodex();
+  game.ui.codexTab = Math.max(0, Math.min(4, (Number(flag('--tab')) || 1) - 1));
+  game.ui.codexRow = 0;
+  pump(2);
+} else {
   game.startLevel(level);
   game.speed = 8;
   const sol = SOL[level.id];

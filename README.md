@@ -75,9 +75,47 @@ price, takes a 3 s cold start, and scales back in after 7 quiet seconds.
 | `A` | toggle autoscaling on the selected node |
 | `SPACE` | pause · `=` / `-` speed 1× → 8× |
 | `L` | flow overlay (does this link still reach a server? `[` `]` cycle the type) |
+| `K` | open the CODEX (nodes, traffic, mechanics, shifts, controls) |
+| `N` / `T` | tutorial: next step / start the tour again · `ESC` ends it |
 | `C` / `M` | CRT filter / mute · `H` help (3 pages) |
 | `R` / `Q` | restart the shift / abandon it |
 | right-click | cancel the current mode |
+
+## Tutorial
+
+A guided tour runs through the opening shifts. Each step is a card at the bottom of the screen plus a
+**spotlight**: everything outside the thing the step is talking about is dimmed, the target is ringed in
+amber, and the step's own rows in the BUILD panel stay lit while the rest of the palette is marked
+`▓▓ LOCKED`. Steps unlock in order — a locked action is refused with the hint of the step that wants
+something else first, so it is impossible to build a topology the tutorial has not explained yet.
+
+* `N` (or the `[N] NEXT` button on the card) advances, `ESC` ends the tour, `T` starts it again.
+* Steps that watch the simulation advance by themselves when their condition is met (traffic flowing,
+  the box placed, the wire connected) — the card flashes `✓ DONE` and moves on.
+* `L01`–`L03` are fully guided (place, wire, watch, hit rate). `L04`–`L10` get three short steps each
+  about the new box they introduce.
+* The mode lives in the title menu: **guided opening** (default), **every shift**, or **off**. A tour
+  that has been finished or skipped is not shown again for that shift; it is remembered in the save.
+
+## Codex
+
+`K` opens the codex from the title, the level list, the shift and the postmortem. It has five tabs —
+**NODES**, **TRAFFIC**, **MECHANICS**, **SHIFTS**, **CONTROLS** — and every entry is written from the same
+tables the simulation runs on, so the numbers cannot drift from the game:
+
+| Tab | Entries |
+| --- | --- |
+| NODES | all 15 nodes: cost, capacity/s, queue depth, upkeep, what they finish, upgrade price, autoscale limit |
+| TRAFFIC | all 7 request types: revenue, queue weight, which nodes can finish them, whether they need an app hop |
+| MECHANICS | 12 articles: ticks and determinism, packets, queues, the app flag, cache hits and stampedes, money and reputation, tiers, autoscaling and cold starts, incidents, drop reasons, stars/SLO/endless, how to read the board |
+| SHIFTS | every shift with its goal, error budget, budget and the traffic curve it sends |
+| CONTROLS | every key, in one table |
+
+Nodes and traffic types stay **LOCKED** until the player has actually met them — placed that node, served
+that request type — and shifts unlock as the campaign advances. Discoveries persist across runs (and are
+cleared by `RESET PROGRESS`), so the codex doubles as a progress list: the locked entries are a to-do
+list of what the game still has to show you. `[↑↓]` walks the list, `[←→]` or `1`–`5` switches tabs,
+clicking works too, and opening the codex pauses the shift underneath.
 
 ## Determinism
 
@@ -102,6 +140,8 @@ src/render/term.js   160×50 cell grid, palette, panels, bars, formatting
 src/render/hud.js    the whole game as terminal cells: board, nodes, links, panels, overlays
 src/render/renderer.js  WebGL2 instanced glyph/sprite batching + optional CRT post pass
 src/game/input.js   keyboard/mouse → intent · src/game/audio.js  synthesized blips
+src/game/tutorial.js  the guided steps: cards, focus rects, soft locks, per-shift tours
+src/game/codex.js   every number in the game, from the tables the simulation uses
 src/game/main.js    screens, progress, the fixed-step game loop
 tools/verify.mjs    level winnability + determinism + perf harness (the reference solutions live here)
 tests/run.mjs       headless suite · tests/stub.mjs  fake DOM/WebGL so the real loop runs in Node
@@ -132,10 +172,16 @@ by doing nothing, if two runs of the same seed diverge, or if a level's drops ar
 prints drop reasons, worst nodes and advice per level, and `--perf` reports simulation cost against the
 16.7 ms frame budget (≈0.2 ms/tick with 11 000 packets in flight).
 
-`npm test` runs 18 checks: RNG streams and content tables, packet-pool layout (field aliasing would be
+`npm test` runs 24 checks: RNG streams and content tables, packet-pool layout (field aliasing would be
 caught here), directed connect/disconnect bookkeeping, economy, routing coverage for all seven traffic
 types, drop accounting, autoscaling, daily/endless determinism, terminal cell safety, every HUD screen,
-and a full keyboard-and-mouse playthrough of L01 through the real game loop under a fake DOM/WebGL.
+a full keyboard-and-mouse playthrough of L01 through the real game loop under a fake DOM/WebGL, the
+tutorial's step order and locks (including that a locked step refuses a click in the real game and that
+finishing or skipping is remembered), the codex's lock rules per tab, and the tutorial spotlight (focused
+cells stay at full brightness, everything else is dimmed).
+
+`node tools/shot.mjs --screen tut` and `--screen codex` print a real frame of the tour and the codex as
+text in the terminal, so both can be inspected without a browser.
 
 ## Research
 
