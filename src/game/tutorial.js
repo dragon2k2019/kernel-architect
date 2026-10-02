@@ -63,97 +63,102 @@ function wireStep(fromType, toType, id, title, card, extra = {}) {
 
 // ------------------------------------------------------------------ the shifts
 const L01 = [
-  goalStep('welcome', 'WELCOME TO THE NOC', [
-    'Requests arrive at the INTERNET node and must reach something that can finish them.',
-    'Right now nothing is built, so nothing is even being sent: no path, no traffic.',
-    'Your job is to build the path, and to keep every queue on it from spilling.',
-    'This card is the tutorial. Do what it says, or press [N] to move on, or [ESC] to drop out.',
+  goalStep('welcome', 'WELCOME: GOALS & HOW TO PLAY', [
+    'MISSION: Serve 420 requests before shift clock (1:15) ends.',
+    'LOSE IF: Dropped errors hit 90 (budget) or Reputation hits 0.',
+    'THE LOOP: Place server boxes, connect with wires, route traffic.',
+    'FIRST ACTION: Press [1] (or click 1 % APP in BUILD panel) to pick APP SERVER,',
+    'then click inside the glowing zone on the board! (Or press [N]).',
   ], [{ panel: 'OBJECTIVES' }, { panel: 'BUILD' }], (g) => g.sim.nodes.count > 1),
 
   placeStep('COMPUTE', 'place-app', 'PLACE AN APP SERVER', [
-    'Press [1] (or click ▸ % APP SERVER in the BUILD panel), then click inside the highlighted zone.',
-    'The app server does the application work, and it is the only node that lets traffic continue into',
-    'the data tier. Cost $130 now, $1.30/s upkeep.',
+    'Press [1] (or click 1 % APP in BUILD panel), then click the highlighted zone.',
+    'DEFINITION: The App Server handles logic and routes traffic to backend tiers.',
+    'Traffic from the Internet cannot reach databases without an App Server.',
+    'Costs $130 now, $1.30/s upkeep. Watch your cash at top-right!',
   ]),
 
   placeStep('SQL', 'place-db', 'PLACE A DATABASE', [
-    'Now a database: press [2] (or click ▤ RELATIONAL DB) and put it in the zone as well.',
-    'READ and WRITE requests are finished by a database. Nothing else in this shift finishes them.',
-    'Keeping them apart on the board makes the wires readable later.',
+    'Press [2] (or click 2 ▤ SQL in BUILD panel), then click inside the zone.',
+    'DEFINITION: Databases store data and complete READ and WRITE requests.',
+    'Without a Database, requests have nowhere to finish and drop as NO ROUTE.',
+    'Tip: Place it to the right of your App Server so wires remain clear.',
   ]),
 
   wireStep('INTERNET', 'COMPUTE', 'wire-net-app', 'WIRE INTERNET → APP SERVER', [
-    'Click the INTERNET node on the left, press [W], then click the APP SERVER you just placed.',
-    '[ENTER] does the same thing. Look for the ▶ arrow that appears on the wire: that is the direction',
-    'traffic will flow.',
+    'Click INTERNET on the left, press [W], then click the APP SERVER.',
+    'DEFINITION: Wires are directed paths (note the ▶ arrow). Traffic flows forward.',
+    'Requests enter at INTERNET and travel along wires to connected nodes.',
+    'Shortcut: Click source, press [ENTER], then click target.',
   ]),
 
   wireStep('COMPUTE', 'SQL', 'wire-app-db', 'WIRE APP → DATABASE', [
-    'Select the APP SERVER, press [W], then click the database.',
-    'The path is now INTERNET → APP → DB. As soon as it is complete, traffic starts flowing on its own.',
+    'Click the APP SERVER, press [W], then click the DATABASE.',
+    'PATH COMPLETE: INTERNET → APP → DB. Traffic begins flowing immediately!',
+    'Packets move along the wire into the App Server, then into the Database.',
+    'To remove an unwanted wire, simply wire the same two nodes again.',
   ]),
 
-  goalStep('watch', 'WATCH THE FIRST REQUESTS', [
-    'Packets are moving. Watch three things: the dots on the wires, the bar inside each box, and the',
-    'number under it (queue depth vs capacity). Load is how fast a node is working; the queue is what',
-    'is piling up, and a full queue is what drops requests.',
-    'Press [=] to run the shift at 2x, 4x or 8x — the run is deterministic either way.',
+  goalStep('watch', 'WATCH QUEUES & METRICS', [
+    'LOAD bar inside each box = current CPU utilization (0-100%).',
+    '"q 0/240" under box = QUEUE depth. If queue hits 90%, it drops traffic!',
+    'ERRORS counter top-right is your budget (max 90). Do not let it fill up.',
+    'Press [=] to speed up time (1x, 2x, 4x, 8x) or [SPACE] to pause and inspect.',
   ], [{ nodes: ['COMPUTE'] }, { panel: 'FLOW' }], (g) => g.sim.completed >= 25),
 
-  info('done', 'THAT IS THE WHOLE GAME', [
-    'Everything from here is the same loop: give each traffic type a node that can finish it, give every',
-    'bottleneck enough capacity, and keep the queues off the red line.',
-    'Your goal for this shift is on the right: 420 requests served, no more than 90 errors, before the clock.',
-    'Press [K] at any time for the CODEX: every node, every traffic type, every mechanic, with real numbers.',
-    'Good luck. Press [N] to close this card and finish the shift.',
+  info('done', 'COMMAND THE SHIFT', [
+    'OBJECTIVE: Reach 420 completed requests before time (1:15) runs out.',
+    'STARS: Beat shift (1★), under 40 errors (2★), under 400ms p99 latency (3★).',
+    'Press [H] for full Glossary & Controls, [K] for deep CODEX specifications.',
+    'Press [N] to close this tutorial card and take full command!',
   ], [{ panel: 'OBJECTIVES' }, { panel: 'BUILD' }]),
 ];
 
 const L02 = [
   placeStep('STORAGE', 'place-s3', 'PLACE OBJECT STORAGE', [
-    'STATIC requests (images, CSS, JS) are the majority of this shift, and they cannot be finished by a',
-    'database or an app server. Press [3] and put ▣ OBJECT STORAGE in the zone.',
-    'It is the cheapest box on the board: $60, $0.60/s.',
+    'STATIC traffic (images, CSS, JS) cannot be finished by an App Server or DB.',
+    'Press [3] (or click 3 ▣ STORAGE) and place Object Storage in the zone.',
+    'DEFINITION: Storage holds static files. It is cheap ($60, $0.60/s upkeep).',
   ]),
-  wireStep('INTERNET', 'STORAGE', 'wire-net-s3', 'WIRE INTERNET → OBJECT STORAGE', [
-    'The edge serves STATIC directly: no app hop needed, which keeps your app tier and database free',
-    'for READ and WRITE traffic.',
-    'In the BUILD panel you can also see ▣ S3 listed for... nothing else. Keep UPLOAD in mind for later.',
+  wireStep('INTERNET', 'STORAGE', 'wire-net-s3', 'WIRE INTERNET → STORAGE', [
+    'Click INTERNET, press [W], then click OBJECT STORAGE.',
+    'EDGE ROUTING: Static files are served directly at the network edge,',
+    'bypassing compute to keep your App Servers and Database free for READs.',
   ]),
-  goalStep('readyshift', 'NOW THE READ PATH', [
-    'STATIC is handled at the edge. READ traffic is not: it still needs an APP SERVER in front of a',
-    'RELATIONAL DB. Everything is unlocked now — build the read path (INTERNET → APP → DB) and finish',
-    'the shift.',
-    'Watch the ERRORS counter: it is your error budget, and it only goes up.',
+  goalStep('readyshift', 'BUILD THE READ PATH', [
+    'STATIC traffic is wired. But READ traffic is also arriving!',
+    'Build the read path: INTERNET → APP SERVER [1] → DATABASE [2].',
+    'WIN: Reach 1700 completed requests. LOSE: 120 errors (budget) or 0 rep.',
+    'Keep queues green. Press [H] for help, [=] to speed up.',
   ], [{ panel: 'OBJECTIVES' }], (g) => g.sim.state !== 'running'),
 ];
 
 const L03 = [
-  placeStep('COMPUTE', 'l03-app', 'REBUILD THE READ PATH', [
-    'Fresh shift, empty board: the app server first. Press [1] and place it in the zone.',
-    'Read traffic is climbing fast in this one, so do not dawdle.',
+  placeStep('COMPUTE', 'l03-app', 'BUILD READ PATH: APP SERVER', [
+    'High read traffic ahead! Place an APP SERVER: press [1] and click zone.',
+    'DEFINITION: App Servers receive reads and pass them to cache or database.',
   ]),
-  placeStep('SQL', 'l03-db', 'ADD THE DATABASE', [ 'Press [2] and place the database next to the app server.' ]),
+  placeStep('SQL', 'l03-db', 'ADD THE DATABASE', [
+    'Press [2] and place the RELATIONAL DB in the zone to store read data.',
+  ]),
   wireStep('INTERNET', 'COMPUTE', 'l03-w1'),
   wireStep('COMPUTE', 'SQL', 'l03-w2'),
   placeStep('CACHE', 'l03-cache', 'PLACE A MEMORY CACHE', [
-    'The database is now the bottleneck: reads are queueing behind each other.',
-    'Press [4] and put ∗ MEMORY CACHE in the zone, between the app and the database.',
-    'A cache finishes a share of reads on the spot; the rest continue to the database as misses.',
+    'Database bottleneck! High read traffic fills the DB queue quickly.',
+    'Press [4] and place ∗ MEMORY CACHE between the App Server and Database.',
+    'DEFINITION: A Cache stores recent reads in fast RAM, answering hits instantly.',
   ]),
   wireStep('COMPUTE', 'CACHE', 'l03-wc', 'WIRE APP → CACHE', [
-    'Select the APP SERVER, press [W], click the CACHE.',
-    'The app now has two ways to reach a database. It will prefer the cache — that is the point of it.',
+    'Click APP SERVER, press [W], click CACHE. The app will prefer the cache first.',
   ]),
   wireStep('CACHE', 'SQL', 'l03-wc2', 'WIRE CACHE → DATABASE', [
-    'Now the misses need somewhere to go: select the CACHE, press [W], click the DATABASE.',
-    'You now have INTERNET → APP → CACHE → DB with the app also able to reach the DB directly.',
+    'Click CACHE, press [W], click DATABASE. Cache misses will flow to the DB.',
   ]),
-  goalStep('l03-watch', 'WATCH THE HIT RATE', [
-    'Select the CACHE (click it) and look at HIT RATE in the inspector: that is the share of reads it is',
-    'finishing without touching the database.',
-    'If the database queue still climbs, a T2 upgrade [U] on the cache raises its hit rate.',
-    'Press [=] to speed up, and finish the shift.',
+  goalStep('l03-watch', 'MONITOR HIT RATE & BOTTLENECKS', [
+    'Select the CACHE (click it) to view its HIT RATE in the INSPECTOR.',
+    'Cache hits finish instantly; cache misses proceed to the Database.',
+    'If the DB queue still climbs, select the Cache and press [U] to upgrade it.',
+    'WIN: 4200 served before time runs out. Max errors: 150. Speed up with [=].',
   ], [{ nodes: ['CACHE'] }, { panel: 'INSPECTOR' }], (g) => g.sim.state !== 'running'),
 ];
 
@@ -171,12 +176,12 @@ function lightSteps(level) {
   const zone = ZONE2;
   return [
     {
-      id: 'new-' + key.toLowerCase(), title: `NEW BOX: ${def.name}`,
+      id: 'new-' + key.toLowerCase(), title: `NEW HARDWARE: ${def.name}`,
       card: [
-        `${level.teaches}`,
-        '',
-        `Press the BUILD key for ${def.glyph} ${def.name} ($${def.cost}, ${def.cap > 1000 ? 'effectively unlimited' : def.cap + '/s'} capacity, queue ${def.queue}) and place it in the highlighted zone.`,
-        'Nothing is locked in this shift: the zone is just where the wires will be tidiest.',
+        `${level.teaches}.`,
+        `DEFINITION: ${def.hint}`,
+        `Press key for ${def.glyph} ${def.name} ($${def.cost}, ${def.cap > 1000 ? 'unlimited' : def.cap + '/s'} cap, q ${def.queue}) and place in zone.`,
+        'Everything is unlocked: place it to expand your topology.',
       ],
       focus: [{ item: key }, { zone }],
       allow: null,
@@ -187,9 +192,9 @@ function lightSteps(level) {
     {
       id: 'wire-' + key.toLowerCase(), title: `WIRE THE ${def.short} IN`,
       card: [
-        `${host === 'INTERNET' ? 'Edge boxes sit right behind the INTERNET and finish their own traffic.' : 'Data-tier boxes only accept traffic that has already passed an APP SERVER, so they live behind the app.'}`,
-        `Select ${host === 'INTERNET' ? 'the INTERNET' : 'the APP SERVER'} and press [W], then click the ${def.short}. ${key === 'LOADBALANCER' ? 'Then wire the balancer out to each app server.' : ''}`,
-        'One wire in, one wire out: a box with no path out is a dead end that drops traffic.',
+        `${host === 'INTERNET' ? 'Edge box: connect INTERNET directly to it.' : 'Data tier: connect APP SERVER to it.'}`,
+        `Select ${host === 'INTERNET' ? 'INTERNET' : 'APP SERVER'}, press [W], click ${def.short}.${key === 'LOADBALANCER' ? ' Then wire balancer out to each App Server.' : ''}`,
+        'CRITICAL: Wires must reach a destination that finishes traffic, or packets drop!',
       ],
       focus: [{ nodes: [key] }],
       allow: null,
@@ -201,10 +206,11 @@ function lightSteps(level) {
       primary: 'skip',
     },
     {
-      id: 'tour-over', title: 'OVER TO YOU',
+      id: 'tour-over', title: 'MISSION OBJECTIVES',
       card: [
-        `Tour finished. ${level.brief}`,
-        'Press [K] for the CODEX while you think, [H] for the key list, and [N] to get this card out of the way.',
+        `GOAL: Complete ${level.objectives.complete || 'target'} requests. Error limit: ${level.objectives.maxErrors || 'N/A'}.`,
+        `${level.brief}`,
+        'Press [H] for Help/Glossary, [K] for Codex with all formulas, [N] to close.',
       ],
       focus: [{ panel: 'OBJECTIVES' }],
       allow: null, check: null, primary: 'next',

@@ -261,8 +261,9 @@ class Game {
   helpInput(presses) {
     for (const k of presses) {
       if (k === 'escape' || k === 'h' || k === '?') this.backFromHelp();
-      else if (k === 'ArrowRight' || k === 'd' || k === 'enter') this.ui.helpPage = (this.ui.helpPage + 1) % 3;
-      else if (k === 'ArrowLeft' || k === 'a') this.ui.helpPage = (this.ui.helpPage + 2) % 3;
+      else if (k === 'ArrowRight' || k === 'd' || k === 'enter' || k === ' ') this.ui.helpPage = (this.ui.helpPage + 1) % 4;
+      else if (k === 'ArrowLeft' || k === 'a') this.ui.helpPage = (this.ui.helpPage + 3) % 4;
+      else if (k >= '1' && k <= '4') this.ui.helpPage = +k - 1;
       else if (k === 'm') { this.audio.muted = !this.audio.muted; this.save(); }
       else if (k === 'c') { this.crt = !this.crt; this.renderer.crt = this.crt ? 1 : 0; this.save(); }
     }

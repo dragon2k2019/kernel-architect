@@ -265,7 +265,7 @@ function short(v) {
 // --------------------------------------------------------------------------- right panels
 function panelObjectives(g, y, h) {
   const { term, sim } = g;
-  term.panel(PX, y, PW, h, 'OBJECTIVES');
+  term.panel(PX, y, PW, h, 'OBJECTIVES — [H] HELP');
   const o = g.level.objectives;
   const x = PX + 2, w = PW - 4;
   let r = y + 1;
@@ -284,15 +284,17 @@ function panelObjectives(g, y, h) {
   const ef = o.maxErrors ? sim.dropped / o.maxErrors : 0;
   term.text(x, r, 'ERRORS', PAL.dim);
   term.text(x + 8, r, `${sim.dropped}`.padStart(5), ef > 0.8 ? PAL.red : ef > 0.5 ? PAL.amber : PAL.green);
-  term.text(x + 14, r, o.endless ? '' : `/ ${o.maxErrors}`.padEnd(7), PAL.dim);
-  term.bar(x + 22, r, w - 22, ef, ef > 0.8 ? PAL.red : PAL.amber);
+  term.text(x + 14, r, o.endless ? '' : `/ ${o.maxErrors} MAX`.padEnd(9), PAL.dim);
+  term.bar(x + 24, r, w - 24, ef, ef > 0.8 ? PAL.red : PAL.amber);
   r++;
   term.text(x, r, 'REPUT.', PAL.dim);
-  term.bar(x + 8, r, w - 8 - 5, sim.rep / 100, sim.rep < 30 ? PAL.red : sim.rep < 60 ? PAL.amber : PAL.green);
-  term.field(PX + PW - 2 - 4, r, `${Math.round(sim.rep)}`, 4, PAL.bright, PAL.bg, 'right');
+  term.bar(x + 8, r, w - 8 - 7, sim.rep / 100, sim.rep < 30 ? PAL.red : sim.rep < 60 ? PAL.amber : PAL.green);
+  term.field(PX + PW - 2 - 6, r, `${Math.round(sim.rep)}/100`, 6, sim.rep < 30 ? PAL.red : PAL.bright, PAL.bg, 'right');
   r++;
   const s = g.level.stars || {};
-  term.text(x, r, `★ ${s.errors2} errors   ★ ${s.sloMs}ms p99`, 0 ? PAL.bright : PAL.dim);
+  term.text(x, r, `★ ${s.errors2} errors   ★ ${s.sloMs}ms p99`, PAL.dim);
+  r++;
+  term.text(x, r, 'LOSE IF: errors hit max or rep=0', PAL.dimmer);
   return y + h;
 }
 
@@ -356,13 +358,14 @@ function panelInspector(g, y, h) {
   if (i < 0 || i >= sim.nodes.count || sim.nodes.state[i] === 0) {
     term.text(x, r, 'Click a node to inspect it.', PAL.dimmer);
     r += 2;
-    term.text(x, r++, 'Every box has a job:', PAL.dim);
-    term.text(x, r++, 'sources make traffic, transit', PAL.dimmer);
-    term.text(x, r++, 'boxes pass it on, sinks', PAL.dimmer);
-    term.text(x, r++, 'complete it, monitors watch.', PAL.dimmer);
-    term.text(x, r++, 'Wires only point one way.', PAL.dimmer);
-    term.text(x, r++, 'Right-click cancels the', PAL.dimmer);
-    term.text(x, r++, 'current mode.', PAL.dimmer);
+    term.text(x, r++, 'HOW TO PLAY & WIN:', PAL.bright);
+    term.text(x, r++, '1. Traffic enters at INTERNET', PAL.green);
+    term.text(x, r++, '2. % APP SERVER routes to sinks', PAL.green);
+    term.text(x, r++, '3. ▤ SQL completes READ/WRITE', PAL.green);
+    term.text(x, r++, '4. ▣ STORAGE completes STATIC', PAL.green);
+    term.text(x, r++, '5. Wires point one way (▶ arrow)', PAL.dim);
+    term.text(x, r++, '6. q x/cap = Queue (90%=drops!)', PAL.amber);
+    term.text(x, r++, 'Press [H] for full Glossary & Guide', PAL.cyan);
     return y + h;
   }
   const n = sim.nodes, def = NODES[n.type[i]], info = sim.nodeInfo(i);
@@ -524,51 +527,80 @@ function overlayFrame(term, title, w = 96, h = 34, ax = null, ay = null) {
 
 export function drawHelp(g) {
   const { term } = g;
-  const page = g.ui.helpPage % 3;
+  const page = g.ui.helpPage % 4;
   term.clear();
-  const { x, y, w, h } = overlayFrame(term, `HELP ${page + 1}/3 — [←/→] page  [ESC] close`, COLS - 4, ROWS - 2);
+  const TITLES = [
+    'GOALS, WIN CONDITIONS & THE LOOP',
+    'GLOSSARY & DEFINITIONS (WHAT EVERYTHING MEANS)',
+    'HARDWARE / SERVERS CHEATSHEET',
+    'TRAFFIC TYPES & ROUTING MATRIX',
+  ];
+  const { x, y, w, h } = overlayFrame(term, `HELP ${page + 1}/4: ${TITLES[page]} — [1-4] jump  [←/→] page  [ESC] close`, COLS - 4, ROWS - 2);
   const bg = [0.01, 0.05, 0.03];
   const lx = x + 3;
   let r = y + 2;
   if (page === 0) {
-    const keys = [
-      ['MOUSE CLICK', 'select a node, click a build item, click the board to place'],
-      ['1-9, 0 / TAB', 'pick a build item from the BUILD panel'],
-      ['ARROWS / WASD', 'move the placement cursor or walk the selection between nodes'],
-      ['ENTER', 'place the selected box at the cursor (or confirm a wire)'],
-      ['W', 'wire mode: pick a source, then a target, then ENTER'],
-      ['U / X', 'upgrade the selected node to the next tier / sell it'],
-      ['A', 'toggle autoscaling on the selected node'],
-      ['SPACE', 'pause. The sim only advances on ticks: pause to think.'],
-      ['= / -', 'run at 1x, 2x, 4x, 8x speed'],
-      ['L', 'flow overlay: which links can still reach a server ([/] cycle type)'],
-      ['K', 'CODEX: every node, traffic type, mechanic, shift and key, with real numbers'],
-      ['N / T', 'tutorial: next step / start the tour again (locked steps say what they want)'],
-      ['C / M', 'CRT filter / mute'],
-      ['R / Q', 'restart the shift / abandon it and go back to the level list'],
-      ['ESC', 'cancel the cursor, then the wire, then the tutorial step'],
+    term.text(lx, r++, 'MISSION GOALS & WIN CONDITIONS', PAL.bright, bg);
+    const goals = [
+      '• HOW TO WIN: Serve the target number of requests (e.g. 420 in L01) before the shift timer expires.',
+      '• HOW YOU LOSE:',
+      '  1. ERROR BUDGET EXHAUSTED: If dropped requests reach the maximum allowed (e.g. 90 in L01), you fail.',
+      '  2. REPUTATION HITS ZERO: Customer trust starts at 100. Every dropped packet damages it. 0 = fired!',
+      '  3. CLOCK RUNS OUT: If the shift time expires before your request goal is reached.',
+      '  4. BANKRUPTCY: If ongoing upkeep drains your cash to zero.',
+      '• STARS (RATING): 1★ = Win shift, 2★ = Beat strict error target, 3★ = Beat p99 latency SLO target.',
     ];
-    term.text(lx, r++, 'CONTROLS', PAL.bright, bg);
-    for (const [k, d] of keys) { term.text(lx + 2, r, k.padEnd(16), PAL.cyan, bg); term.text(lx + 19, r, d.slice(0, w - 24), PAL.green, bg); r++; }
+    for (const line of goals) term.text(lx + 2, r++, line, PAL.green, bg);
     r++;
-    term.text(lx, r++, 'THE LOOP', PAL.bright, bg);
-    const para = [
-      'Traffic spawns at the INTERNET and walks the graph you build. Every packet needs a node that can',
-      'COMPLETE its type: a READ needs a cache hit or a database, a STATIC request needs a CDN or object',
-      'storage, a SEARCH needs a search index, an ATTACK needs a firewall. If it cannot reach one it is',
-      'dropped (NO ROUTE), and every drop costs reputation. Nodes only accept traffic that has already',
-      'passed through an APP SERVER (the edge boxes are the exception).',
-      '',
-      'Queues are the real game: a node serves at a fixed requests/sec, and anything faster than that',
-      'piles up in its queue. A queue that fills up drops whatever arrives next. A packet that spends',
-      'more than 7 seconds in queues dies with a 504. So: add capacity before the queue, not after it.',
-      '',
-      'Money comes from completed requests only, minus upkeep. Reputation falls with every drop and',
-      'recovers slowly. Win the objective before the clock and before the error budget runs out.',
+    term.text(lx, r++, 'THE 5-STEP ARCHITECTURE LOOP', PAL.bright, bg);
+    const loop = [
+      '1. INSPECT FLOW: Look at the FLOW panel on the right. See what traffic types are incoming (READ, WRITE, STATIC...).',
+      '2. CHOOSE HARDWARE: In the BUILD panel, pick nodes that can COMPLETE those traffic types.',
+      '3. BUILD & WIRE: Place servers with [1-9,0] and click. Connect them with [W] (wires are one-way pipes with ▶ arrows).',
+      '4. MONITOR QUEUES: The "q x/cap" below each box is its backlog. IF A QUEUE HITS 90% (RED), IT WILL DROP PACKETS!',
+      '5. SCALE BEFORE IT SPILLS: Press [U] to upgrade a node tier or [A] to autoscale before traffic spikes overwhelm it.',
     ];
-    for (const p of para) term.text(lx, r++, p, PAL.green, bg);
+    for (const line of loop) term.text(lx + 2, r++, line, PAL.cyan, bg);
+    r++;
+    term.text(lx, r++, 'CONTROLS SUMMARY', PAL.bright, bg);
+    const keys = [
+      '[1-9,0] / TAB: pick build item   [CLICK] / [ENTER]: place on board   [W]: wire mode (source → target)',
+      '[U]: upgrade node tier   [X]: sell node   [A]: toggle autoscale   [SPACE]: pause sim   [=]/[-]: speed 1x-8x',
+      '[H]: help & glossary   [K]: deep codex with formulas   [L]: toggle routing flow overlay   [ESC]: cancel/close',
+    ];
+    for (const k of keys) term.text(lx + 2, r++, k, PAL.green, bg);
   } else if (page === 1) {
-    term.text(lx, r++, 'NODES — cost, per-second capacity, queue depth, what they complete', PAL.bright, bg);
+    term.text(lx, r++, 'SCREEN METRICS & LABELS EXPLAINED', PAL.bright, bg);
+    const metrics = [
+      ['DONE x OF y', 'Requests served successfully toward your victory objective.'],
+      ['ERRORS x/max', 'Dropped packets vs your allowed Error Budget. Do NOT let this hit max!'],
+      ['REPUTATION', 'Customer satisfaction (0-100). Lost on packet drops; recovers slowly. 0 = loss.'],
+      ['UPKEEP ($/s)', 'Server operating costs deducted every second from your cash balance.'],
+      ['LOAD (0-100%)', 'Current worker CPU/engine utilization. High load means node is working fast.'],
+      ['QUEUE (q x/cap)', 'Backlog waiting to be served. When full, incoming requests DROP as errors!'],
+      ['LIVE', 'Packets currently traveling on wires across your network graph.'],
+    ];
+    for (const [k, d] of metrics) { term.text(lx + 2, r, k.padEnd(16), PAL.cyan, bg); term.text(lx + 19, r, d, PAL.green, bg); r++; }
+    r++;
+    term.text(lx, r++, 'PACKET DROP REASONS & WHAT THEY MEAN', PAL.bright, bg);
+    const drops = [
+      ['NO ROUTE', 'Packets arrived with no wired path to a node that can finish them (build or wire a sink!).'],
+      ['QUEUE FULL', 'The server was 100% full; the next arriving packet spilled and was destroyed.'],
+      ['504 TIMEOUT', 'Request spent more than 7 seconds waiting in congested queues without completing.'],
+      ['NODE DOWN', 'A node crashed or was killed by a simulated incident (redundant nodes prevent drops!).'],
+      ['SHED', 'Gateway throttled packets on purpose to protect backend servers from catastrophic failure.'],
+    ];
+    for (const [k, d] of drops) { term.text(lx + 2, r, k.padEnd(16), PAL.red, bg); term.text(lx + 19, r, d, PAL.green, bg); r++; }
+    r++;
+    term.text(lx, r++, 'ROUTING RULES', PAL.bright, bg);
+    const rules = [
+      '• Traffic spawns at INTERNET and travels strictly forward along wired arrows (▶).',
+      '• Compute Gate: Databases, Caches, GPUs and Search ONLY accept traffic after it passes an APP SERVER.',
+      '• Edge Serving: STATIC requests are finished directly by STORAGE (S3) or CDN without needing compute.',
+    ];
+    for (const rl of rules) term.text(lx + 2, r++, rl, PAL.cyan, bg);
+  } else if (page === 2) {
+    term.text(lx, r++, 'HARDWARE / NODES — cost, per-second capacity, queue depth, what they complete', PAL.bright, bg);
     term.text(lx + 2, r, 'NODE'.padEnd(16) + 'COST'.padStart(6) + 'CAP/s'.padStart(8) + 'QUEUE'.padStart(7) + '  UPKEEP   COMPLETES', PAL.cyan, bg); r++;
     for (const def of NODES) {
       term.text(lx + 2, r, (def.glyph + ' ' + def.name).padEnd(16), rgba(def.color.map((c) => c / 255)), bg);
@@ -592,22 +624,19 @@ export function drawHelp(g) {
       r++;
     }
     r++;
-    term.text(lx, r++, 'READING THE BOARD', PAL.bright, bg);
+    term.text(lx, r++, 'READING THE BOARD & ADVANCED ARCHITECTURE', PAL.bright, bg);
     const lines = [
-      'The bar inside a box is its utilisation; the number below it is queue depth vs capacity.',
-      'Red blinking border = the queue is 90% full. It is about to drop traffic: fix it before it does.',
-      'Press L to overlay the flow field. Amber links still lead to a node that can serve the selected',
-      'traffic type; dim links are dead ends that will be dropped at the node they point to.',
-      'Autoscaling (A) boots extra instances while utilisation is over 75% and pays 30% of the node cost',
-      'per instance, with a 3 second cold start. It scales back in after 7 quiet seconds.',
-      'Tiers: T2 is 2.2x capacity and 1.5x queue for 60% more money, T3 is 4.4x capacity.',
-      '',
-      'ENDLESS keeps ramping until the wheels come off. Your score is requests completed.',
-      'DAILY is a fixed seed: the same traffic and the same incidents for everyone, all day.',
+      '• Bar inside a box = utilisation (load). The number below it is queue depth vs capacity (q x/cap).',
+      '• Red blinking border = the queue is 90% full. It is about to drop traffic: add capacity or upgrade [U]!',
+      '• Press L to overlay the flow field: amber links lead to a valid server; dim links are dead ends.',
+      '• Autoscaling [A] on App Server or GPU boots extra instances when load >75% (3s cold start).',
+      '• Tiers: T2 provides 2.2x capacity and 1.5x queue for 60% more upkeep; T3 provides 4.4x capacity.',
+      '• ENDLESS SHIFT ramps traffic forever; score is requests served before reputation reaches 0.',
+      '• DAILY SHIFT provides a fixed daily seed so players worldwide compete on identical incidents.',
     ];
     for (const l of lines) term.text(lx, r++, l, PAL.green, bg);
   }
-  term.text(x + 3, y + h - 2, '[ESC] back', PAL.dim, bg);
+  term.text(x + 3, y + h - 2, '[1-4] jump page  [←/→] prev/next  [ESC] close help', PAL.bright, bg);
 }
 
 export function drawPostmortem(g) {
@@ -906,7 +935,7 @@ export function drawTutorialCard(g) {
   term.text(x + 2 + tut.total + 1, r, `${tut.number}/${tut.total}`, PAL.dim, bg);
   // buttons
   const by = y + H - 2;
-  const b1 = s.check ? '[N] SKIP TO NEXT STEP' : '[N] NEXT';
+  const b1 = s.check ? '[N] NEXT STEP' : '[N] NEXT';
   term.text(x + 2, by, b1, PAL.black, PAL.green);
   term.text(x + 2 + b1.length + 3, by, '[ESC] END TUTORIAL', PAL.black, [0.55, 0.3, 0.15]);
   term.text(x + W - 12, by, '[K] CODEX', PAL.cyan, bg);

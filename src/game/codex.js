@@ -22,6 +22,35 @@ const secs = (ticks) => (ticks / SIM.TICK_RATE).toFixed(0);
 // ---------------------------------------------------------------- mechanics (the manual)
 const MECHANICS = [
   {
+    id: 'goals', title: 'MISSION GOALS & WIN CONDITIONS',
+    body: [
+      'HOW TO WIN A SHIFT:',
+      '  1. Complete the target number of requests (e.g. 420 in L01) before the clock expires.',
+      '  2. Keep your Error Budget intact: do not let dropped requests reach the level limit.',
+      '  3. Keep Reputation above 0: dropping packets damages customer trust.',
+      '  4. Keep Cash positive: each box costs upkeep ($/s). Running out of money loses immediately.',
+      'STARS (SHIFT RATING):',
+      '  ★ 1 Star:  Complete the shift objectives before time runs out.',
+      '  ★ 2 Stars: Finish with total errors under the strict error threshold.',
+      '  ★ 3 Stars: Maintain fast response times with p99 latency under the SLO threshold.',
+    ],
+    meta: [['win', 'complete target requests'], ['loss', 'errors >= max OR rep <= 0 OR cash <= 0 OR timeout'], ['rating', '1-3 stars based on drops & latency']],
+  },
+  {
+    id: 'glossary', title: 'GLOSSARY & KEY DEFINITIONS',
+    body: [
+      'CORE TERMS EXPLAINED:',
+      '  PACKET / TRAFFIC: Incoming user requests arriving from the Internet (READ, WRITE, STATIC...).',
+      '  NODE: A server box placed on the board (App Server, Database, Cache, Storage, etc.).',
+      '  WIRE: A directed connection (▶ arrow). Packets flow strictly in the direction of the arrow.',
+      '  LOAD / UTIL: How hard the node is working right now as a percentage of capacity (0-100%).',
+      '  QUEUE (q x/cap): Packets waiting in line. IF QUEUE HITS 90%, NEW ARRIVALS DROP AS ERRORS!',
+      '  UPKEEP: Continuous operating cost deducted from your cash every second per node.',
+      '  DROP REASONS: NO ROUTE (missing wire/sink), QUEUE FULL (bottleneck), 504 (waited >7s), DOWN (crash).',
+    ],
+    meta: [['queue danger', '>= 90% capacity'], ['timeout', '7 seconds in queues'], ['traffic', 'must reach a completing sink']],
+  },
+  {
     id: 'tick', title: 'TICKS AND DETERMINISM',
     body: [
       `The simulation runs at a fixed ${SIM.TICK_RATE} ticks per second and never reads the wall clock or a random`,
