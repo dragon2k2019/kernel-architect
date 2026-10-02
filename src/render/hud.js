@@ -18,7 +18,7 @@ export const BX = 0, BY = 1;                    // board origin, world cells == 
 export const PW = 41, PX = COLS - PW;           // right-hand panel column
 export const LOG_Y = 45, HINT_Y = 49;
 export const BUILD_Y = 34;                       // top of the BUILD panel
-export const TITLE_MENU = { x: 23, y: 14, w: 62, step: 2 };
+export const TITLE_MENU = { x: 23, y: 13, w: 62, step: 2 };   // 11 entries: rows 13..33
 export const LS_MENU = { x: 28, y: 10, w: 104, step: 1 };
 const TYPE_COLOR = TRAFFIC.map((t) => rgba(t.color.map((c) => c / 255)));
 
@@ -690,8 +690,8 @@ export function drawTitle(g) {
     term.text(mx, y, label.padEnd(52), sel ? PAL.bright : it.locked ? PAL.dimmer : PAL.green, sel ? [0.06, 0.22, 0.12] : PAL.bg);
     term.text(mx + 56, y, it.note || '', it.locked ? PAL.dimmer : PAL.dim);
   }
-  term.text(tx, 12, `shift seed  ${g.seedText || 'per-shift'}      progress  ${g.progressWon()}/${g.progressTotal()} shifts cleared`.padEnd(tw), PAL.dim);
-  term.text(tx, 13, `webgl2 ${g.glInfo || 'renderer'}    ${COLS}x${ROWS} cells    vsync 60Hz    sim tick ${SIM.TICK_RATE}Hz`.padEnd(tw), PAL.dimmer);
+  term.text(tx, 11, `shift seed  ${g.seedText || 'per-shift'}      progress  ${g.progressWon()}/${g.progressTotal()} shifts cleared`.padEnd(tw), PAL.dim);
+  term.text(tx, 12, `webgl2 ${g.glInfo || 'renderer'}    ${COLS}x${ROWS} cells    vsync 60Hz    sim tick ${SIM.TICK_RATE}Hz`.padEnd(tw), PAL.dimmer);
   const box2 = [
     'HOW THIS WORKS',
     'Every request is a packet. Every packet needs a node that can finish it. Queues fill, capacity is finite,',

@@ -188,11 +188,14 @@ export class Renderer {
     this.count++;
   }
 
-  /** Queue one terminal cell. fg/bg are [r,g,b] in 0..1; dim multiplies both (tutorial spotlight). */
-  cell(col, row, glyph, fg, bg, bgI = 1, dim = 1) {
+  /**
+   * Queue one terminal cell. fg/bg are [r,g,b] in 0..1; dim multiplies both (tutorial spotlight);
+   * scale > 1 draws the glyph over several cells (PLAY MODE's big pictures).
+   */
+  cell(col, row, glyph, fg, bg, bgI = 1, dim = 1, scale = 1) {
     const gi = glyphIndex(glyph);
     const u = (gi % ATLAS_COLS) / ATLAS_COLS, v = Math.floor(gi / ATLAS_COLS) / ATLAS_ROWS;
-    this.push(col * GLYPH_W, row * GLYPH_H, GLYPH_W, GLYPH_H, u, v, u + 1 / ATLAS_COLS, v + 1 / ATLAS_ROWS,
+    this.push(col * GLYPH_W, row * GLYPH_H, GLYPH_W * scale, GLYPH_H * scale, u, v, u + 1 / ATLAS_COLS, v + 1 / ATLAS_ROWS,
       fg[0], fg[1], fg[2], 0, bg[0], bg[1], bg[2], bgI, dim, dim);
   }
 

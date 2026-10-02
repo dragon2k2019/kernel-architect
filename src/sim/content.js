@@ -1,4 +1,5 @@
 // src/sim/content.js — all game content and tuning constants.
+import { ICON } from '../render/atlas.js';
 //
 // INDEXES ARE PART OF THE SAVE/REPLAY CONTRACT: append new entries, never reorder.
 
@@ -18,13 +19,13 @@ export const SIM = {
 };
 
 export const TRAFFIC = [
-  { id: 0, key: 'STATIC',  name: 'STATIC',  glyph: '≡', color: [120, 233, 255], revenue: 0.40, weightMs: 1.0, hint: 'Images, CSS, JS. Cache it at a CDN or store it in object storage.' },
-  { id: 1, key: 'READ',    name: 'READ',    glyph: 'R', color: [126, 255, 176], revenue: 0.90, weightMs: 1.2, hint: 'API reads. Cache them, or scale the database out with replicas.' },
-  { id: 2, key: 'WRITE',   name: 'WRITE',   glyph: 'W', color: [255, 224, 120], revenue: 2.20, weightMs: 2.4, hint: 'Writes are never cached and cost real work. Queue and batch them.' },
-  { id: 3, key: 'UPLOAD',  name: 'UPLOAD',  glyph: 'U', color: [180, 140, 255], revenue: 1.80, weightMs: 3.0, hint: 'Big payloads. Send them to object storage, never through the database.' },
-  { id: 4, key: 'SEARCH',  name: 'SEARCH',  glyph: '?', color: [255, 150, 90],  revenue: 2.40, weightMs: 3.4, hint: 'Full-text queries. A relational database will refuse them: you need a search index.' },
-  { id: 5, key: 'AI',      name: 'AI',      glyph: '◆', color: [255, 120, 200], revenue: 8.00, weightMs: 8.0, hint: 'Inference. Expensive, slow, and needs a GPU with a real fleet behind it.' },
-  { id: 6, key: 'MALICIOUS', name: 'ATTACK', glyph: '!', color: [255, 90, 90],  revenue: 0.00, weightMs: 0.8, hint: 'DDoS and credential stuffing. Block it at the edge before it costs you capacity.' },
+  { id: 0, key: 'STATIC', kidGlyph: ICON.PICTURE, kidName: 'PICTURES',  name: 'STATIC',  glyph: '≡', color: [120, 233, 255], revenue: 0.40, weightMs: 1.0, hint: 'Images, CSS, JS. Cache it at a CDN or store it in object storage.' },
+  { id: 1, key: 'READ', kidGlyph: ICON.SMILE, kidName: 'HAPPY FACES',    name: 'READ',    glyph: 'R', color: [126, 255, 176], revenue: 0.90, weightMs: 1.2, hint: 'API reads. Cache them, or scale the database out with replicas.' },
+  { id: 2, key: 'WRITE', kidGlyph: ICON.PENCIL, kidName: 'NOTES',   name: 'WRITE',   glyph: 'W', color: [255, 224, 120], revenue: 2.20, weightMs: 2.4, hint: 'Writes are never cached and cost real work. Queue and batch them.' },
+  { id: 3, key: 'UPLOAD', kidGlyph: ICON.UP, kidName: 'BOXES',  name: 'UPLOAD',  glyph: 'U', color: [180, 140, 255], revenue: 1.80, weightMs: 3.0, hint: 'Big payloads. Send them to object storage, never through the database.' },
+  { id: 4, key: 'SEARCH', kidGlyph: '⌕', kidName: 'FIND IT',  name: 'SEARCH',  glyph: '?', color: [255, 150, 90],  revenue: 2.40, weightMs: 3.4, hint: 'Full-text queries. A relational database will refuse them: you need a search index.' },
+  { id: 5, key: 'AI', kidGlyph: '★', kidName: 'STARS',      name: 'AI',      glyph: '◆', color: [255, 120, 200], revenue: 8.00, weightMs: 8.0, hint: 'Inference. Expensive, slow, and needs a GPU with a real fleet behind it.' },
+  { id: 6, key: 'MALICIOUS', kidGlyph: ICON.NOENTRY, kidName: 'BAD GUYS', name: 'ATTACK', glyph: '!', color: [255, 90, 90],  revenue: 0.00, weightMs: 0.8, hint: 'DDoS and credential stuffing. Block it at the edge before it costs you capacity.' },
 ];
 export const T = Object.fromEntries(TRAFFIC.map((t) => [t.key, t.id]));
 export const N_TRAFFIC = TRAFFIC.length;
@@ -32,79 +33,96 @@ export const N_TRAFFIC = TRAFFIC.length;
 // role:   source = spawns traffic, spreader = fans out to peers, transit = forwards by flow field,
 //         sink = terminates the types it serves, monitor = never carries traffic.
 // serves: traffic types this node can COMPLETE.
+// Every node carries a picture and a short name for PLAY MODE (the friendly mode for young players):
+// a five-year-old matches the picture that is causing trouble to the tile with the same picture.
 export const NODES = [
   {
-    key: 'INTERNET', name: 'INTERNET', short: 'NET', glyph: '@', color: [140, 255, 200],
+    key: 'INTERNET',
+    kidName: 'CLOUD', kidGlyph: ICON.CLOUD, name: 'INTERNET', short: 'NET', glyph: '@', color: [140, 255, 200],
     cost: 0, upkeep: 0, cap: 4000, queue: 400, role: 'source', serves: [], autoMax: 0,
     hint: 'Your traffic source. Pre-placed. Everything must eventually be reachable from here.',
   },
   {
-    key: 'FIREWALL', name: 'FIREWALL', short: 'WAF', glyph: '#', color: [255, 120, 120],
+    key: 'FIREWALL',
+    kidName: 'SHIELD', kidGlyph: ICON.SHIELD, name: 'FIREWALL', short: 'WAF', glyph: '#', color: [255, 120, 120],
     cost: 120, upkeep: 1.2, cap: 600, queue: 240, role: 'transit', serves: [T.MALICIOUS], autoMax: 0,
     hint: 'Blocks ATTACK traffic (and earns reputation for it). Put it directly behind the INTERNET.',
   },
   {
-    key: 'CDN', name: 'CDN', short: 'CDN', glyph: '~', color: [120, 233, 255],
+    key: 'CDN',
+    kidName: 'PICS', kidGlyph: ICON.PICTURE, name: 'CDN', short: 'CDN', glyph: '~', color: [120, 233, 255],
     cost: 90, upkeep: 0.9, cap: 900, queue: 200, role: 'transit', serves: [T.STATIC], autoMax: 0,
     hint: 'Serves STATIC at the edge, so static traffic never touches your app or database.',
   },
   {
-    key: 'GATEWAY', name: 'API GATEWAY', short: 'GW', glyph: '⌐', color: [160, 255, 220],
+    key: 'GATEWAY',
+    kidName: 'DOOR', kidGlyph: '⌐', name: 'API GATEWAY', short: 'GW', glyph: '⌐', color: [160, 255, 220],
     cost: 140, upkeep: 1.4, cap: 800, queue: 200, role: 'spreader', serves: [], autoMax: 0,
     hint: 'Rate limits. When it sheds load the reputation hit is 3x smaller than a crash drop.',
   },
   {
-    key: 'LOADBALANCER', name: 'LOAD BALANCER', short: 'ALB', glyph: '⊥', color: [160, 255, 220],
+    key: 'LOADBALANCER',
+    kidName: 'FORK', kidGlyph: '⊥', name: 'LOAD BALANCER', short: 'ALB', glyph: '⊥', color: [160, 255, 220],
     cost: 80, upkeep: 0.8, cap: 1500, queue: 120, role: 'spreader', serves: [], autoMax: 0,
     hint: 'Spreads traffic evenly across every node behind it. One APP node behind it is a single point of failure.',
   },
   {
-    key: 'COMPUTE', name: 'APP SERVER', short: 'APP', glyph: '%', color: [126, 255, 176],
+    key: 'COMPUTE',
+    kidName: 'HOUSE', kidGlyph: ICON.HOUSE, name: 'APP SERVER', short: 'APP', glyph: '%', color: [126, 255, 176],
     cost: 130, upkeep: 1.3, cap: 150, queue: 240, role: 'spreader', serves: [], autoMax: 4,
     hint: 'Does the application work, then forwards to the data tier. Press A to autoscale the fleet.',
   },
   {
-    key: 'CACHE', name: 'MEMORY CACHE', short: 'CACHE', glyph: '*', color: [255, 224, 120],
+    key: 'CACHE',
+    kidName: 'ZIP', kidGlyph: ICON.BOLT, name: 'MEMORY CACHE', short: 'CACHE', glyph: '*', color: [255, 224, 120],
     cost: 100, upkeep: 1.0, cap: 900, queue: 160, role: 'spreader', serves: [T.READ], autoMax: 0,
     hint: 'Absorbs a share of READs (a cache hit). Misses continue downstream to the database.',
   },
   {
-    key: 'QUEUE', name: 'MESSAGE QUEUE', short: 'QUEUE', glyph: '≈', color: [200, 200, 255],
+    key: 'QUEUE',
+    kidName: 'LINE', kidGlyph: ICON.LADDER, name: 'MESSAGE QUEUE', short: 'QUEUE', glyph: '≈', color: [200, 200, 255],
     cost: 70, upkeep: 0.7, cap: 300, queue: 900, role: 'spreader', serves: [], autoMax: 0,
     hint: 'A deep buffer. Absorbs bursts by queueing instead of dropping. Watch the queue depth.',
   },
   {
-    key: 'SQL', name: 'RELATIONAL DB', short: 'SQL', glyph: '▤', color: [180, 140, 255],
+    key: 'SQL',
+    kidName: 'BOOK', kidGlyph: ICON.BOOK, name: 'RELATIONAL DB', short: 'SQL', glyph: '▤', color: [180, 140, 255],
     cost: 220, upkeep: 2.2, cap: 120, queue: 240, role: 'sink', serves: [T.READ, T.WRITE], autoMax: 0,
     hint: 'Serves READ and WRITE. Slow under search load, and a single one is a hard ceiling.',
   },
   {
-    key: 'NOSQL', name: 'NOSQL DB', short: 'NOSQL', glyph: '▥', color: [180, 140, 255],
+    key: 'NOSQL',
+    kidName: 'PAPERS', kidGlyph: '▥', name: 'NOSQL DB', short: 'NOSQL', glyph: '▥', color: [180, 140, 255],
     cost: 160, upkeep: 1.6, cap: 260, queue: 300, role: 'sink', serves: [T.READ, T.WRITE], autoMax: 0,
     hint: 'Twice the throughput of SQL for reads and writes, but no full-text search.',
   },
   {
-    key: 'REPLICA', name: 'READ REPLICA', short: 'REPL', glyph: '▦', color: [150, 170, 255],
+    key: 'REPLICA',
+    kidName: 'COPY', kidGlyph: '▦', name: 'READ REPLICA', short: 'REPL', glyph: '▦', color: [150, 170, 255],
     cost: 150, upkeep: 1.5, cap: 260, queue: 240, role: 'sink', serves: [T.READ], autoMax: 0,
     hint: 'Serves READs only. The standard fix when reads saturate a single primary.',
   },
   {
-    key: 'SEARCH', name: 'SEARCH INDEX', short: 'INDEX', glyph: '⌕', color: [255, 150, 90],
+    key: 'SEARCH',
+    kidName: 'GLASS', kidGlyph: '⌕', name: 'SEARCH INDEX', short: 'INDEX', glyph: '⌕', color: [255, 150, 90],
     cost: 180, upkeep: 1.8, cap: 200, queue: 160, role: 'sink', serves: [T.SEARCH], autoMax: 0,
     hint: 'The only thing that serves SEARCH. Three times faster at it than a relational database.',
   },
   {
-    key: 'STORAGE', name: 'OBJECT STORAGE', short: 'S3', glyph: '▣', color: [120, 233, 255],
+    key: 'STORAGE',
+    kidName: 'BOX', kidGlyph: ICON.CRATE, name: 'OBJECT STORAGE', short: 'S3', glyph: '▣', color: [120, 233, 255],
     cost: 60, upkeep: 0.6, cap: 400, queue: 200, role: 'sink', serves: [T.STATIC, T.UPLOAD], autoMax: 0,
     hint: 'Cheap bulk storage for STATIC and UPLOAD. Never send reads or writes here.',
   },
   {
-    key: 'GPU', name: 'GPU INFERENCE', short: 'GPU', glyph: '◈', color: [255, 120, 200],
+    key: 'GPU',
+    kidName: 'ROBOT', kidGlyph: ICON.GEAR, name: 'GPU INFERENCE', short: 'GPU', glyph: '◈', color: [255, 120, 200],
     cost: 420, upkeep: 4.2, cap: 90, queue: 120, role: 'sink', serves: [T.AI], autoMax: 3,
     hint: 'Serves AI inference in batches. Very expensive: autoscale it so you only pay when it is busy.',
   },
   {
-    key: 'MONITOR', name: 'MONITORING', short: 'MON', glyph: '◦', color: [120, 200, 180],
+    key: 'MONITOR',
+    kidName: 'EYE', kidGlyph: '◦', name: 'MONITORING', short: 'MON', glyph: '◦', color: [120, 200, 180],
     cost: 90, upkeep: 0.9, cap: 9999, queue: 16, role: 'monitor', serves: [], autoMax: 0,
     hint: 'Unlocks the metrics panel (p50/p99 latency, per-node queue depth, drop reasons).',
   },
@@ -259,6 +277,68 @@ export const LEVELS = [
       { at: 62, kind: 'KILL', nodeType: 'GPU', dur: 12, note: 'A GPU node thermal-throttles and drops out of the fleet.' },
       { at: 85, kind: 'BURST', type: 'AI', mult: 5.0, dur: 12, note: 'Second demo wave.' },
     ],
+  },
+];
+
+// ---------------------------------------------------------------------------------------------
+// PLAY MODE (the friendly mode). Same simulation, pictures instead of numbers, and a much smaller
+// set of things to learn: every level adds exactly one new picture, and the only question is which
+// tile matches the picture that is queueing at the CLOUD.
+//
+//   K01  one request type, two tiles: the HOUSE and the BOOK that finishes happy faces
+//   K02  pictures arrive too: a BOX holds pictures (the BOOK refuses them)
+//   K03  "find it" arrives: only the GLASS can answer those
+//   K04  stars arrive: they need the ROBOT
+export const KID_LEVELS = [
+  {
+    id: 'K01', kid: true, name: 'HAPPY FACES',
+    brief: 'Happy faces want to come in and be counted. Tap the HOUSE, then the BOOK.',
+    teaches: 'Tap a tile, then tap the board. The CLOUD sends everything along the wires.',
+    budget: 600, duration: 150, startRep: 300, seed: 0x4b3031,
+    traffic: [{ type: 'READ', rps: 7, ramp: 0.1 }],
+    objectives: { complete: 300, maxErrors: 150 },
+    stars: { errors2: 20, sloMs: 900 },
+    unlock: ['COMPUTE', 'SQL'],
+    incidents: [],
+  },
+  {
+    id: 'K02', kid: true, name: 'PICTURES',
+    brief: 'Now pictures arrive as well. The BOOK will not take pictures: add a BOX.',
+    teaches: 'Every kind of thing has its own home. Match the picture to the tile.',
+    budget: 900, duration: 165, startRep: 300, seed: 0x4b3032,
+    traffic: [{ type: 'READ', rps: 6, ramp: 0.08 }, { type: 'STATIC', rps: 5, ramp: 0.06 }],
+    objectives: { complete: 450, maxErrors: 200 },
+    stars: { errors2: 30, sloMs: 900 },
+    unlock: ['COMPUTE', 'SQL', 'STORAGE'],
+    incidents: [],
+  },
+  {
+    id: 'K03', kid: true, name: 'FIND IT',
+    brief: 'Someone is asking questions. Only the GLASS can find things: add one.',
+    teaches: 'The BOOK says no to questions. A different picture can need a different tile.',
+    budget: 1400, duration: 180, startRep: 300, seed: 0x4b3033,
+    traffic: [
+      { type: 'READ', rps: 6, ramp: 0.08 }, { type: 'STATIC', rps: 5, ramp: 0.06 },
+      { type: 'SEARCH', rps: 4, ramp: 0.05 },
+    ],
+    objectives: { complete: 600, maxErrors: 260 },
+    stars: { errors2: 40, sloMs: 900 },
+    unlock: ['COMPUTE', 'SQL', 'STORAGE', 'SEARCH'],
+    incidents: [],
+  },
+  {
+    id: 'K04', kid: true, name: 'STARS',
+    brief: 'Stars need a ROBOT. Robots are expensive: tap the ROBOT and then the board.',
+    teaches: 'The last picture: big jobs need the biggest box.',
+    budget: 3000, duration: 195, startRep: 300, seed: 0x4b3034,
+    traffic: [
+      { type: 'READ', rps: 6, ramp: 0.08 }, { type: 'STATIC', rps: 5, ramp: 0.06 },
+      { type: 'AI', rps: 3, ramp: 0.04 },
+    ],
+    objectives: { complete: 420, maxErrors: 300 },
+    stars: { errors2: 50, sloMs: 900 },
+    unlock: ['COMPUTE', 'SQL', 'STORAGE', 'GPU'],
+    incidents: [],
   },
 ];
 

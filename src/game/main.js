@@ -16,6 +16,10 @@ import { Rng, streamSeed, toHex8 } from '../core/rng.js';
 import { Input } from './input.js';
 import { Audio } from './audio.js';
 import { Tutorial } from './tutorial.js';
+import * as KIDHUD from '../render/kid.js';
+import {
+  KID_LEVELS, nextKidLevel, enterKid, kidPlace, kidPlaceAt, kidCounts, kidQueue, kidMessage, kidSteps,
+} from './kids.js';
 import { CODEX_TABS, codexEntries, codexProgress } from './codex.js';
 
 const SAVE_KEY = 'kernelarchitect.save.v1';
@@ -40,6 +44,7 @@ class Game {
     this.tutMode = saved.tutMode || 'first';          // off | first | all
     this.tutDone = saved.tutDone || {};               // level id -> 1 once a tour has been finished or skipped
     this.tut = null;
+    this.kid = false;                                 // PLAY MODE: pictures, no numbers
     this.codexSeen = saved.codexSeen || { nodes: {}, traffic: {} };
     this.hitboxes = [];
 
@@ -89,6 +94,11 @@ class Game {
     if (this.screen === 'title') {
       const nxt = this.nextLevel();
       const items = [];
+      const klv = nextKidLevel(this.progress);
+      items.push({
+        label: '▶ PLAY', note: `big pictures, no numbers — ${klv.name.toLowerCase()}`,
+        action: () => this.startKid(),
+      });
       items.push({ label: 'CONTINUE  ' + LEVELS[nxt].id + ' ' + LEVELS[nxt].name, note: 'pick up where you left off', action: () => this.startLevel(LEVELS[nxt]) });
       items.push({ label: 'CAMPAIGN', note: `${this.wonCount()}/${LEVELS.length} shifts cleared`, action: () => this.goto('levels') });
       items.push({ label: 'DAILY SHIFT', note: this.dailyLabel(), action: () => this.startDaily() });
@@ -147,6 +157,7 @@ class Game {
 
   startLevel(level, seedOverride) {
     if (!level.unlock) level.unlock = PALETTE.slice();      // DAILY builds with the full palette
+    this.kid = !!level.kid;
     this.level = level;
     this.sim = new Sim(level, { seed: seedOverride || this.levelSeed(level) });
     if (level.id === 'ENDLESS' || level.id === 'DAILY') {
@@ -168,6 +179,15 @@ class Game {
     const seed = this.seedPref || ((Math.random() * 0xffffffff) >>> 0);
     this.startLevel(ENDLESS, seed);
   }
+  /** PLAY MODE: the same simulation with pictures, a pre-built house and one new tile per level. */
+  startKid(level) {
+    const lv = level || nextKidLevel(this.progress);
+    this.startLevel(lv);                       // sets this.kid from the level itself
+    const r = enterKid(this.sim);              // the house is already there, wired to the cloud
+    if (!r.ok) this.note('could not set up the play area: ' + r.err);
+    this.toast = { msg: 'TAP A TILE ON THE RIGHT, THEN TAP THE BOARD.', until: 420 };
+  }
+
   afterStart() {
     this.seedHex = toHex8(this.sim.seed);
     this.speed = 1; this.paused = false; this.acc = 0;
@@ -195,8 +215,8 @@ class Game {
       case 'title': this.titleInput(presses, clicks); break;
       case 'levels': this.levelInput(presses, clicks); break;
       case 'help': this.helpInput(presses); break;
-      case 'play': this.playInput(presses, clicks); break;
-      case 'post': this.postInput(presses, clicks); break;
+      case 'play': if (this.kid) this.kidInput(presses, clicks); else this.playInput(presses, clicks); break;
+      case 'post': if (this.kid) this.kidPostInput(presses, clicks); else this.postInput(presses, clicks); break;
     }
   }
 
@@ -452,6 +472,93 @@ class Game {
     }
   }
 
+  // ------------------------------------------------------------------ play mode input
+  /** Tiles, a board, and nothing else: tap a tile, tap the board, watch the pictures go. */
+  kidInput(presses, clicks) {
+    const ui = this.ui, sim = this.sim;
+    const list = this.level.unlock || [];
+    for (const k of presses) {
+      switch (k) {
+        case 'escape':
+          if (this.tut && this.tut.active) this.endTutorial();
+          else if (ui.placeKey) ui.placeKey = null;
+          else this.confirm('Stop playing and go back to the start?', () => { this.kid = false; this.goto('title'); });
+          break;
+        case 'k': this.openCodex(); break;
+        case 'n': this.nextTutStep(); break;
+        case 'space': this.paused = !this.paused; break;
+        case '=': case '+': this.speed = SPEEDS[Math.min(SPEEDS.length - 1, SPEEDS.indexOf(this.speed) + 1)] || 1; break;
+        case '-': this.speed = SPEEDS[Math.max(0, SPEEDS.indexOf(this.speed) - 1)] || 1; break;
+        case 'enter': if (ui.placeKey) this.kidDrop(null, null); break;
+        case 'h': case '?': case 'F1': this.gotoHelp('play'); break;
+        case 'r': this.confirm('Start this game over?', () => this.startKid(this.level)); break;
+        case 'm': this.audio.muted = !this.audio.muted; this.save(); break;
+        case 'c': this.crt = !this.crt; this.renderer.crt = this.crt ? 1 : 0; this.save(); break;
+        default: break;
+      }
+      if (k.length === 1 && k >= '1' && k <= '9') {
+        const kk = +k - 1;
+        if (kk < list.length) this.kidPick(kk);
+      }
+    }
+    if (this.tut && this.tut.active && this.tut.pending === 0) this.tut.tick({ sim });
+    for (const c of clicks) {
+      if (c.button === 2) { ui.placeKey = null; continue; }
+      const id = this.hitboxAt(c.x, c.y);
+      if (id === 'kid-next') { this.nextTutStep(); continue; }
+      if (id === 'kid-stop') { this.endTutorial(); continue; }
+      if (id && id.startsWith('kid-tile:')) { this.kidPick(+id.split(':')[1]); continue; }
+      if (c.x >= KIDHUD.KID.RAIL_X) continue;               // the rail is tiles only
+      if (c.y < 1 || c.y > KIDHUD.KID.BOARD_H) continue;
+      if (ui.placeKey) this.kidDrop(c.x - 7, c.y - 1);          // the board starts at column 0
+    }
+  }
+
+  kidPick(k) {
+    const key = (this.level.unlock || [])[k];
+    if (!key) return;
+    if (!this.gate('pick', { key }).ok) return;
+    this.ui.buildIdx = k;
+    this.ui.placeKey = key;
+    this.audio.play('click');
+  }
+
+  /** Put the chosen tile down (where the player tapped, or on the next free spot). */
+  kidDrop(x, y) {
+    const key = this.ui.placeKey;
+    if (!key) return;
+    if (!this.gate('place', { key, x: x === null ? 0 : x, y: y === null ? 0 : y }).ok) return;
+    const r = (x === null || y === null) ? kidPlace(this.sim, key) : kidPlaceAt(this.sim, key, x, y);
+    if (r.ok) {
+      this.ui.placeKey = null;
+      this.note('');
+      this.audio.play('place');
+    } else {
+      this.note(r.err || 'no room there — try another spot');
+      this.audio.play('drop');
+    }
+  }
+
+  kidPostInput(presses, clicks) {
+    const won = this.sim && this.sim.state === 'won';
+    const go = () => {
+      if (won) {
+        const i = KID_LEVELS.indexOf(this.level);
+        const next = i >= 0 && i + 1 < KID_LEVELS.length ? KID_LEVELS[i + 1] : null;
+        if (next) this.startKid(next); else this.goto('title');
+      } else this.startKid(this.level);
+    };
+    for (const k of presses) {
+      if (k === 'enter' || k === 'space') { go(); return; }
+      if (k === 'escape' || k === 'q') { this.kid = false; this.goto('title'); return; }
+      if (k === 'k') { this.openCodex(); return; }
+    }
+    if (clicks.length) {
+      const hit = clicks.find((c) => (this.hitboxAt(c.x, c.y) || '') === 'kid-go');
+      if (hit || clicks.length) go();
+    }
+  }
+
   // ------------------------------------------------------------------ tutorial
   /** The tutorial only ever looks at the simulation. */
   tutCtx() { return { sim: this.sim }; }
@@ -622,6 +729,10 @@ class Game {
       seedText: this.seedPref ? '0x' + toHex8(this.seedPref) : 'per-shift (fixed)',
       textPackets: !!this.textPackets,
       tut: this.screen === 'play' && this.tut && this.tut.active ? this.tut : null,
+      kid: this.kid,
+      kidCounts: this.kid && this.sim ? kidCounts(this.sim, this.level) : null,
+      kidQueue: this.kid && this.sim ? kidQueue(this.sim) : null,
+      kidMessage: this.kid && this.sim ? kidMessage(this.sim, this.level) : null,
       codex: this.ui.codexOpen ? {
         tabs: CODEX_TABS, tab: this.ui.codexTab, row: this.ui.codexRow,
         entries: this.codexEntriesNow(), progress: this.codexProgressOf(),
@@ -629,11 +740,15 @@ class Game {
       } : null,
       hitboxes: [],
     };
-    this.hitboxes = g.hitboxes;
+    this.g = g;                                   // the last frame's draw context (tools/debugging)
     this.renderer.crt = this.crt ? 1 : 0;
     this.renderer.begin();
     if (this.screen === 'title') HUD.drawTitle(g);
     else if (this.screen === 'levels') HUD.drawLevelSelect(g);
+    else if (this.sim && this.kid) {
+      if (this.screen === 'play') { KIDHUD.drawKidFrame(g); KIDHUD.drawKidPackets(g); }
+      else KIDHUD.drawKidEnd(g);
+    }
     else if (this.sim) {
       HUD.drawFrame(g);
       if (this.screen === 'post') HUD.drawPostmortem(g);
@@ -643,14 +758,18 @@ class Game {
     if (this.ui.confirm) this.drawConfirm();
     if (this.ui.note) this.drawNote();
 
-    // cells first, then packet sprites on top
+    // cells first, then the big pictures (PLAY MODE), then packet sprites on top
     for (let y = 0; y < HUD.ROWS; y++) {
       for (let x = 0; x < HUD.COLS; x++) {
         const i = y * HUD.COLS + x;
         this.renderer.cell(x, y, this.term.ch[i], this.term.fg[i], this.term.bg[i], this.term.bgi[i]);
       }
     }
-    if (this.screen === 'play' && this.sim && !this.ui.codexOpen) HUD.drawPackets(g);
+    for (const b of g.big || []) {
+      this.renderer.cell(b.x, b.y, b.ch, b.fg, b.bg || PAL.bg, 1, 1, b.scale || 1);
+    }
+    if (this.screen === 'play' && this.sim && !this.ui.codexOpen && !this.kid) HUD.drawPackets(g);
+    this.hitboxes = g.hitboxes;                   // after the HUD has published them
     this.renderer.flush(this.time);
   }
 

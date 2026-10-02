@@ -69,8 +69,7 @@ L01 HELLO, WORLD  t=0.0s running  done=0 err=0 rep=100 live=0 hash=C6E96637
 
 ==============================================================================
  2. THE CODEX — NODES tab. Entries the player has met show ✓; everything else
-    reads LOCKED and explains how to unlock it. Some history was invented for
-    this dump (an app server and a database placed, traffic served).
+    is sealed until it is met, so the codex cannot spoil a mechanic.
 ==============================================================================
 
                                                                                                                                                                 
@@ -79,7 +78,7 @@ L01 HELLO, WORLD  t=0.0s running  done=0 err=0 rep=100 live=0 hash=C6E96637
    ║ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ║   
    ║                                                                                                                                                        ║   
    ║  ▸ INTERNET                                ✓    │ INTERNET                                                                                             ║   
-   ║    FIREWALL                              LOCKED │ @  source                                                                                            ║   
+   ║    FIREWALL                              LOCKED │ @  source  ·  PLAY MODE: CLOUD ~~                                                                     ║   
    ║    CDN                                   LOCKED │                                                                                                      ║   
    ║    API GATEWAY                           LOCKED │ cost:       free                  capacity:   unlimited                                              ║   
    ║    LOAD BALANCER                         LOCKED │ queue:      400                   upkeep:     $0.00/s                                                ║   
@@ -125,3 +124,4 @@ L01 HELLO, WORLD  t=0.0s running  done=0 err=0 rep=100 live=0 hash=C6E96637
                                                                                                                                                                 
 
 L01 HELLO, WORLD  t=20.0s running  done=192 err=0 rep=100 live=17 hash=5515BD8F
+

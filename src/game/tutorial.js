@@ -12,6 +12,7 @@
 // box, how to wire it, then watch. Nothing is ever locked outside a tutorial step.
 
 import { NODES, NODE, TRAFFIC, T, LEVELS, nodeCapRps } from '../sim/content.js';
+import { kidSteps } from './kids.js';
 
 export const MODES = ['off', 'first', 'all'];
 
@@ -215,6 +216,7 @@ const BUILT = { L01, L02, L03 };
 
 export function stepsFor(level, mode) {
   if (!level || mode === 'off') return null;
+  if (level.kid) return kidSteps(level);         // PLAY MODE: look, tap, watch
   const guided = BUILT[level.id];
   if (guided) return guided;
   if (mode === 'all') return lightSteps(level) || null;

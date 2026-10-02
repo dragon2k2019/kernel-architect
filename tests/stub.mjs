@@ -4,12 +4,41 @@
 // path (input -> sim -> hud -> renderer batching) is executed at least once before a human looks at it.
 // Anything that throws on undefined, mis-indexes a typed array or overflows the instance buffer shows up.
 
-class Fake2D {
-  constructor() { this.fillStyle = '#fff'; this.font = ''; this.textAlign = ''; this.textBaseline = ''; }
-  clearRect() {}
-  fillText() {}
-  fillRect() {}
-  getImageData(x, y, w, h) { return { data: new Uint8ClampedArray(w * h * 4), width: w, height: h }; }
+// A rasterising 2D context. buildAtlas() draws the glyphs with fillRect/clearRect, so keeping the
+// pixels lets the tests check the icon artwork (and `tools/glyphs.mjs` print it) without a browser.
+// fillText is counted, not rasterised: font glyphs are the browser's business.
+export class Fake2D {
+  constructor(w = 1, h = 1) {
+    this.width = w; this.height = h;
+    this.data = new Uint8ClampedArray(w * h * 4);
+    this.fillStyle = '#fff'; this.font = ''; this.textAlign = ''; this.textBaseline = '';
+    this.texts = 0; this.rects = 0;
+  }
+  clearRect(x = 0, y = 0, w = this.width, h = this.height) { this._rect(x, y, w, h, 0); }
+  fillRect(x = 0, y = 0, w = this.width, h = this.height) { this._rect(x, y, w, h, 255); }
+  fillText() { this.texts++; }
+  _rect(x, y, w, h, a) {
+    this.rects++;
+    const x0 = Math.max(0, Math.floor(x)), y0 = Math.max(0, Math.floor(y));
+    const x1 = Math.min(this.width, Math.ceil(x + w)), y1 = Math.min(this.height, Math.ceil(y + h));
+    for (let j = y0; j < y1; j++) {
+      for (let i = x0; i < x1; i++) {
+        const o = (j * this.width + i) * 4;
+        this.data[o] = this.data[o + 1] = this.data[o + 2] = a ? 255 : 0;
+        this.data[o + 3] = a;
+      }
+    }
+  }
+  getImageData(x = 0, y = 0, w = this.width, h = this.height) {
+    const out = new Uint8ClampedArray(w * h * 4);
+    for (let j = 0; j < h; j++) {
+      for (let i = 0; i < w; i++) {
+        const src = ((j + y) * this.width + (i + x)) * 4, dst = (j * w + i) * 4;
+        if (src >= 0 && src + 3 < this.data.length) { out[dst] = this.data[src]; out[dst + 1] = this.data[src + 1]; out[dst + 2] = this.data[src + 2]; out[dst + 3] = this.data[src + 3]; }
+      }
+    }
+    return { data: out, width: w, height: h };
+  }
 }
 
 class FakeGl {
@@ -54,8 +83,16 @@ class FakeCanvas {
     this.width = w; this.height = h; this.style = {};
     this.listeners = new Map();
     this.gl = new FakeGl();
+    this._ctx2d = null;
   }
-  getContext(kind) { return kind === 'webgl2' ? this.gl : kind === '2d' ? new Fake2D() : null; }
+  getContext(kind) {
+    if (kind === 'webgl2') return this.gl;
+    if (kind !== '2d') return null;
+    if (!this._ctx2d || this._ctx2d.width !== this.width || this._ctx2d.height !== this.height) {
+      this._ctx2d = new Fake2D(this.width, this.height);      // resized canvas => fresh pixel buffer
+    }
+    return this._ctx2d;
+  }
   addEventListener(type, fn) { if (!this.listeners.has(type)) this.listeners.set(type, []); this.listeners.get(type).push(fn); }
   removeEventListener() {}
   getBoundingClientRect() { return { left: 0, top: 0, right: this.width, bottom: this.height, width: this.width, height: this.height }; }

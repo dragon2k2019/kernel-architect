@@ -5,6 +5,8 @@
 //   2. simulation        determinism, routing coverage for every traffic type, drop bookkeeping
 //   3. integration       the real game loop driven through the fake DOM: screens, input, HUD, batching
 
+import fs from 'node:fs';
+import path from 'node:path';
 import { installStub } from './stub.mjs';
 
 const results = [];
@@ -14,6 +16,7 @@ function test(name, fn) {
   catch (e) { failures++; results.push(['FAIL', name + '  →  ' + (e && e.message ? e.message : e)]); }
 }
 function ok(cond, msg) { if (!cond) throw new Error(msg || 'assertion failed'); }
+function countOfKey(sim, key) { const t = NODE[key], n = sim.nodes; let c = 0; for (let i = 0; i < n.count; i++) if (n.state[i] !== 0 && n.type[i] === t) c++; return c; }
 function eq(a, b, msg) { if (a !== b) throw new Error(`${msg || 'not equal'}: ${a} !== ${b}`); }
 
 const stub = installStub();
@@ -294,10 +297,12 @@ test('boot: the game installs itself on the page', () => {
 
 test('input -> sim -> hud: play L01 through the keyboard and mouse', () => {
   stub.pump(3);
-  stub.key('Enter');                              // CONTINUE (first menu entry)
+  stub.key('ArrowDown');                          // the menu starts on PLAY; step down to CONTINUE
+  stub.key('Enter');
   stub.pump(2);
   eq(game.screen, 'play', 'menu pick started the shift');
   eq(game.level.id, 'L01', 'first shift');
+  eq(game.kid, false, 'the campaign is not play mode');
   ok(game.tut && game.tut.active, 'the tutorial is running on a fresh save');
 
   stub.key('n');                                  // read the welcome card, move on
@@ -521,6 +526,10 @@ test('codex: entries stay locked until the player has met them', () => {
 });
 
 test('codex: every tab draws, and Escape/arrows drive it in the real game', () => {
+  game.progress = {}; game.tutDone = {};
+  game.startLevel(LEVELS[0]);
+  stub.pump(2);
+  eq(game.screen, 'play', 'back on a campaign shift for the codex checks');
   const ctx = { seen: { nodes: { COMPUTE: true, SQL: true }, traffic: { READ: true } }, progress: { L01: 3 } };
   for (let i = 0; i < CODEX_TABS.length; i++) {
     const term = new Term(HUD.COLS, HUD.ROWS);
@@ -587,6 +596,250 @@ test('hud: the tutorial spotlights the step and dims the rest of the board', () 
   g.tut = null;
   HUD.drawFrame(g);
   ok(term.dim.every((d) => d === 1), 'no tutorial, no dimming');
+});
+
+// --------------------------------------------------------------------- 6. PLAY MODE (pictures)
+const KIDS = await import('../src/game/kids.js');
+const ATLAS = await import('../src/render/atlas.js');
+const KIDDRAW = await import('../src/render/kid.js');
+const { KID, kidTileRect } = KIDDRAW;
+const {
+  KID_LEVELS, nextKidLevel, enterKid, kidPlace, kidPlaceAt, kidCounts, kidQueue, kidMessage, kidTiles, kidSteps,
+} = KIDS;
+
+test('play mode: the tiles place themselves and wire themselves to the cloud and the house', () => {
+  const lv = KID_LEVELS[0];
+  const sim = new Sim(lv, { seed: lv.seed });
+  const r = enterKid(sim);
+  ok(r.ok, 'the play area is set up: ' + (r.err || ''));
+  eq(sim.nodes.count, 2, 'a cloud and a house');
+  ok(sim.isConnected(0, r.house), 'the cloud is wired to the house');
+
+  const book = kidPlace(sim, 'SQL');
+  ok(book.ok, 'the book went down: ' + (book.err || ''));
+  eq(book.wires.length, 1, 'and wired itself up in one go');
+  ok(sim.isConnected(r.house, book.i), 'behind the house, where a book belongs');
+
+  const box = kidPlace(sim, 'STORAGE');
+  ok(box.ok, 'the box went down');
+  ok(sim.isConnected(0, box.i), 'edge boxes hang off the cloud');
+
+  // the wires it chose are the ones that actually route: run the shift and check the work got done
+  for (let i = 0; i < 60 * 90 && sim.state === 'running'; i++) sim.step();
+  ok(sim.completed > 100, `the tap-tap-tap board serves requests (${sim.completed})`);
+  for (const q of LEVELS[0].traffic) ok((sim.dropByType[T[q.type]] || 0) === 0, 'nothing was dropped: ' + q.type);
+  eq(sim.packets.live, countLive(sim), 'packet pool consistent');
+});
+
+test('play mode: the pictures say what is missing, and where to put it', () => {
+  const lv = KID_LEVELS[1];                                       // pictures arrive in this one
+  const sim = new Sim(lv, { seed: lv.seed });
+  enterKid(sim);
+  for (let i = 0; i < 60 * 20; i++) sim.step();
+  const msg = kidMessage(sim, lv);
+  eq(msg.kind, 'missing', 'the game notices the pictures have nowhere to go');
+  ok(/NOBODY TAKES THE/.test(msg.text), 'and says so in pictures: ' + msg.text);
+  ok(lv.unlock.includes(msg.tile), 'the box it points at is one of the level tiles: ' + msg.tile);
+  eq(kidTiles(lv).find((t) => t.key === 'STORAGE').name, 'BOX', 'the tile is called BOX');
+
+  for (const key of ['STORAGE', 'SQL']) ok(kidPlace(sim, key).ok, key + ' went down');
+  sim.dropByType.fill(0);
+  for (let i = 0; i < 60 * 30; i++) sim.step();
+  ok(sim.doneByType[T.STATIC] > 0, 'the pictures now get through');
+  ok(sim.doneByType[T.READ] > 0, 'so do the happy faces');
+  ok(sim.dropped <= 20, `almost nothing is dropped once the tiles match (${sim.dropped})`);
+  ok(kidMessage(sim, lv).kind !== 'missing', 'and the warning is gone');
+  const counts = kidCounts(sim, lv);
+  ok(counts.STORAGE === 1 && counts.COMPUTE === 1, 'the rail can count what is built');
+  ok(kidQueue(sim) && typeof kidQueue(sim) === 'object', 'the waiting strip reads the queues');
+});
+
+test('play mode: every picture level can be won by tapping its tiles', () => {
+  for (const lv of KID_LEVELS) {
+    const sim = new Sim(lv, { seed: lv.seed });
+    enterKid(sim);
+    for (const key of lv.unlock) {
+      if (key === 'COMPUTE') continue;
+      const r = kidPlace(sim, key);
+      ok(r.ok, `${lv.id}: ${key} went down: ${r.err || ''}`);
+    }
+    let ticks = 0;
+    while (sim.state === 'running' && ticks++ < 60 * (lv.duration + 30)) sim.step();
+    eq(sim.state, 'won', `${lv.id} won: ${sim.reason} (${sim.completed} done, ${sim.dropped} dropped)`);
+    ok(sim.dropped <= lv.objectives.maxErrors, `${lv.id} stayed inside the error budget`);
+  }
+});
+
+test('play mode: every box and every request has a real picture, and the atlas draws it', () => {
+  const atlas = ATLAS.buildAtlas();
+  const alpha = ATLAS.atlasToAlpha(atlas);
+  const inkOf = (ch) => {
+    const gi = ATLAS.glyphIndex(ch);
+    const gx = (gi % ATLAS.ATLAS_COLS) * ATLAS.GLYPH_W, gy = Math.floor(gi / ATLAS.ATLAS_COLS) * ATLAS.GLYPH_H;
+    let n = 0;
+    for (let j = 0; j < ATLAS.GLYPH_H; j++) for (let i = 0; i < ATLAS.GLYPH_W; i++) if (alpha[(gy + j) * atlas.width + gx + i] > 100) n++;
+    return n;
+  };
+  let checked = 0;
+  for (const def of NODES) {
+    ok(def.kidName && def.kidGlyph, `${def.key} has a picture and a short name`);
+    ok(ATLAS.atlasHas(def.kidGlyph), `${def.key}'s picture can be drawn`);
+    if (!/[\x20-\x7e]/.test(def.kidGlyph)) { ok(inkOf(def.kidGlyph) > 20, `${def.key} picture has real ink (${inkOf(def.kidGlyph)} px)`); checked++; }
+  }
+  for (const t of TRAFFIC) {
+    ok(t.kidName && t.kidGlyph, `${t.key} has a picture`);
+    ok(ATLAS.atlasHas(t.kidGlyph), `${t.key}'s picture can be drawn`);
+    if (!/[\x20-\x7e]/.test(t.kidGlyph)) { ok(inkOf(t.kidGlyph) > 20, `${t.key} picture has real ink (${inkOf(t.kidGlyph)} px)`); checked++; }
+  }
+  for (const k of Object.keys(ATLAS.ICON)) {
+    ok(ATLAS.atlasHas(ATLAS.ICON[k]), 'ICON.' + k + ' is in the atlas');
+    ok(inkOf(ATLAS.ICON[k]) > 12, 'ICON.' + k + ' has ink (' + inkOf(ATLAS.ICON[k]) + ' px)');
+    checked++;
+  }
+  ok(checked > 25, `the picture set is real (${checked} hand-drawn icons)`);
+  ok(ATLAS.GLYPH_COUNT <= ATLAS.ATLAS_COLS * ATLAS.ATLAS_ROWS, 'the atlas has room for every glyph');
+  // nothing the game draws may fall back to the ~ cell
+  const used = [...NODES.map((d) => d.glyph), ...TRAFFIC.map((t) => t.glyph), ...NODES.map((d) => d.kidGlyph), ...TRAFFIC.map((t) => t.kidGlyph), ...ATLAS.PICT];
+  for (const ch of used) ok(ATLAS.atlasHas(ch), `the HUD can draw ${JSON.stringify(ch)}`);
+});
+
+test('play mode: the real game boots into it, taps place boxes, and the hand-holding ends', () => {
+  game.progress = {}; game.tutDone = {}; game.codexSeen = { nodes: {}, traffic: {} };
+  game.kid = false;
+  game.goto('title');
+  stub.pump(2);
+  const items = game.menuItems();
+  eq(items[0].label, '▶ PLAY', 'PLAY is the first thing on the title screen');
+  stub.key('Enter'); stub.pump(2);
+  eq(game.screen, 'play', 'one keypress starts playing');
+  ok(game.kid, 'play mode is on');
+  eq(game.level.id, 'K01', 'the first picture level');
+  ok(game.tut && game.tut.active, 'the hand-holding is on');
+
+  stub.key('n'); stub.pump(1);                       // LOOK AT THE CLOUD -> TAP THE HOUSE
+  eq(game.tut.number, 2, 'step 2 wants a tap: ' + game.tut.step.title);
+  const before = game.ui.placeKey;
+  stub.key('2'); stub.pump(1);                       // the book is locked while the house is wanted
+  eq(game.ui.placeKey, before, 'a locked tile does nothing');
+  stub.key('1'); stub.pump(1);
+  eq(game.ui.placeKey, 'COMPUTE', 'the wanted tile arms');
+  const houses = countLive(game.sim);
+  stub.key('Enter'); stub.pump(1);
+  eq(game.sim.nodes.count, 3, 'ENTER put the house down');
+  const newHouse = game.sim.nodes.count - 1;
+  ok(game.sim.isConnected(0, newHouse), 'and it was wired to the cloud for the player');
+
+  stub.pump(70);
+  ok(game.tut.number >= 3, 'the card moved on: ' + game.tut.describe());
+  stub.key('2'); stub.pump(1);
+  eq(game.ui.placeKey, 'SQL', 'now the book is wanted');
+  stub.key('Enter'); stub.pump(1);
+  ok(countOfKey(game.sim, 'SQL') === 1, 'the book is on the board');
+  stub.pump(70);
+  ok(game.tut.number >= 4, 'step ' + game.tut.number + ': ' + game.tut.step.title);
+  let guard = 0;
+  while (game.tut && game.tut.active && guard++ < 12) { stub.key('n'); stub.pump(1); }
+  ok(!game.tut.active, 'the tour can be finished');
+  eq(savedNow().tutDone.K01, 1, 'and it is remembered');
+
+  // the tile rail is clickable too, and a tap on the board places the box there
+  game.sim.money = 2000;
+  const tile = game.hitboxes.find((h) => h.id === 'kid-tile:1');
+  ok(tile, 'the rail publishes hitboxes');
+  stub.click(tile.x + 2, tile.y + 2); stub.pump(1);
+  eq(game.ui.placeKey, 'SQL', 'clicking the rail arms the tile');
+  const boxes = game.sim.nodes.count;
+  stub.click(40, 30); stub.pump(1);
+  eq(game.sim.nodes.count, boxes + 1, 'tapping the board places it');
+  ok(game.sim.money > 0, 'and the game is still solvent');
+
+  // the icons really are drawn: PLAY MODE pushes big pictures into the frame
+  ok(game.g && Array.isArray(game.g.big) && game.g.big.length >= 4, `the frame asks for big pictures (${game.g && game.g.big ? game.g.big.length : 0})`);
+  for (const b of game.g.big) ok(ATLAS.atlasHas(b.ch), 'every big picture can be drawn: ' + JSON.stringify(b.ch));
+
+  // and the end screen is one big button
+  game.sim.completed = game.level.objectives.complete;
+  game.sim.state = 'won'; game.sim.reason = 'ALL IN';
+  game.onFinish();
+  stub.pump(2);
+  eq(game.screen, 'post', 'the game ends');
+  ok(game.hitboxes.some((h) => h.id === 'kid-go'), 'with one big button to go on');
+  const nextId = game.level.id;
+  stub.key('Enter'); stub.pump(2);
+  eq(game.screen, 'play', 'and it starts the next picture level');
+  ok(game.level.id !== nextId, `next level: ${game.level.id}`);
+  stub.key('Escape'); stub.pump(1);
+  stub.key('Escape'); stub.pump(2);
+  game.kid = false;
+  game.goto('title');
+});
+
+test('play mode: kid levels are short, gentle and teach one new picture each', () => {
+  eq(KID_LEVELS.length, 4, 'four picture levels');
+  for (const lv of KID_LEVELS) {
+    ok(lv.kid, lv.id + ' is a play level');
+    ok((lv.incidents || []).length === 0, lv.id + ' has no nasty surprises');
+    ok(lv.startRep >= 200, lv.id + ' gives the player room to fumble');
+    eq(lv.traffic.length, new Set(lv.traffic.map((t) => t.type)).size, lv.id + ' traffic types are distinct');
+    for (const tr of lv.traffic) ok(T[tr.type] !== undefined, lv.id + ' sends a known type');
+    for (const k of lv.unlock) {
+      const def = NODES[NODE[k]];
+      ok(def.kidName && def.kidGlyph, `${lv.id} tile ${k} has a picture`);
+      ok(def.serves.length > 0 || k === 'COMPUTE', `${lv.id} tile ${k} is useful on its own`);
+    }
+    const steps = kidSteps(lv);
+    ok(steps && steps.length >= 3, lv.id + ' has a picture tour');
+    for (const s of steps) {
+      ok(s.title.length <= 30, lv.id + '/' + s.id + ' title is short: ' + s.title);
+      ok((s.card || []).join(' ').length <= 120, lv.id + '/' + s.id + ' card is short');
+      ok(s.icons && s.icons.length, lv.id + '/' + s.id + ' has a picture');
+      for (const i of s.icons) ok(ATLAS.atlasHas(i), lv.id + '/' + s.id + ' picture is drawable');
+      for (const f of s.focus) ok(f.item || f.zone || f.nodes || f.panel || f.board, 'focus kinds are known');
+    }
+    ok(steps.some((s) => s.check), lv.id + ' advances on its own somewhere');
+  }
+  eq(nextKidLevel({}).id, 'K01', 'a new player starts at the first one');
+  eq(nextKidLevel({ K01: 3 }).id, 'K02', 'stars move them along');
+  ok(KID_LEVELS.every((lv) => kidTiles(lv).length >= 2 && kidTiles(lv).length <= 5), 'the rail holds 2-5 tiles');
+});
+
+test('everything the game writes can actually be drawn', () => {
+  // Regression: every non-ASCII character in the source had to gain an atlas cell, or the renderer
+  // silently substitutes '~'. '—·…›²∗‖⤢' were all drawing as tildes before this test existed.
+  const files = [];
+  (function walk(d) {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const full = path.join(d, e.name);
+      if (e.isDirectory()) walk(full);
+      else if (/\.(js|mjs)$/.test(e.name)) files.push(full);
+    }
+  })('src');
+  ok(files.length > 10, 'found the sources to scan');
+  const bad = new Map();
+  for (const f of files) {
+    const lines = fs.readFileSync(f, 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      for (const ch of line) {
+        if (ch.codePointAt(0) <= 126) continue;
+        if (ATLAS.atlasHas(ch)) continue;
+        bad.set(ch, `${f}:${i + 1}`);
+      }
+    });
+  }
+  eq(bad.size, 0, 'characters with no atlas cell: ' + [...bad].map(([c, w]) => JSON.stringify(c) + ' at ' + w).join(', '));
+  ok(ATLAS.GLYPH_COUNT <= ATLAS.ATLAS_COLS * ATLAS.ATLAS_ROWS, 'the atlas is not overfull');
+});
+
+test('the screens fit: the tile rail, the title menu and the play board', () => {
+  for (const lv of KID_LEVELS) {
+    const tiles = kidTiles(lv);
+    const last = kidTileRect(tiles.length - 1);
+    ok(last.y + last.h <= KID.STRIP_Y, `${lv.id}: the ${tiles.length}th tile ends at row ${last.y + last.h}, above the talk strip`);
+    ok(KID.RAIL_X + KID.RAIL_W <= KID.COLS, lv.id + ' rail is on screen');
+    ok(1 + KID.BOARD_H <= KID.STRIP_Y, lv.id + ' board is above the talk strip');
+  }
+  const items = 11;                               // the title menu, as it ships
+  ok(HUD.TITLE_MENU.y + (items - 1) * HUD.TITLE_MENU.step < 34, 'the title menu ends above the HOW THIS WORKS box');
 });
 
 // --------------------------------------------------------------------- report

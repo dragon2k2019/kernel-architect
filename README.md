@@ -10,13 +10,49 @@ no network calls, no assets: `index.html` plus ES modules.
 
 ```
 npm run serve      # python3 -m http.server 8000  →  http://localhost:8000/
-npm test           # 18-check headless suite (units + simulation + the real game loop)
+npm test           # 32-check headless suite (units + simulation + the real game loop)
 npm run verify     # every level: reference playthrough, do-nothing run, determinism, drop analysis
 npm run verify L05 # one level with a full trace, drop reasons and advice
 npm run verify -- --perf 12000   # stress the simulation
 ```
 
 Node 18+ is only needed for the headless tools; the game itself runs in any browser with WebGL2.
+
+## PLAY MODE — the same game, in pictures
+
+The title menu starts with **▶ PLAY**: four short games where every number has been replaced by a
+picture. It is meant to be playable by a five-year-old who cannot read the panels, and it leaves the
+campaign untouched (CONTINUE / CAMPAIGN are one keypress away).
+
+```
+  WE WANT  :):):):):):):):):):):):)········  183 / 300      <3 <3 <3 <3 <3   $$ 582
+    ╔═════════════╗         ╔═════════════╗         ╔═════════════╗
+    ║BK▒ BOOK  ░░░░║         ║[]▒ BOX   ░░░░║         ║⌕▒ GLASS ░░░░║
+  · ║▒▒           ║═:)═══:)═║▒▒           ║═:)═══:)═║▒▒           ║     ·     ·
+   ║~~▒ CLOUD ░░░░║                          ║NH▒ HOUSE ░░░░║
+   ║▒▒           ║═══:)═══:)═══:)════:)═══:)═║▒▒           ║
+  :)▒ LOOK AT THE HAPPY FACES GO            WAITING:    :)   0   PG   0
+```
+
+*(An excerpt of a real frame — one picture is nine characters wide, `▒▒` is the loading bar of a box
+that is working, `░░░░` is a box that is idle.)*
+
+* **Requests are pictures.** Every traffic type is an icon (`:)` happy faces, `PG` pictures, `BK` notes
+  …), and so is every box: the app server is a **house**, the database a **book**, object storage a
+  **box**, the search node a **glass**, the cache a pencil, the internet a **cloud**.
+* **One gesture.** Tap a tile on the right (or press its number) and the game picks it up; tap the board
+  and it puts it down — wired, priced and connected for you. There is no wiring mode, no upgrade, no
+  autoscaling and nothing to configure. `ENTER` does the same thing as the tap.
+* **The goal is a queue of pictures.** The top row fills with the thing you are serving (`374 / 420`),
+  the error budget is **five hearts**, and money is a pile of **coins**. A box that is overwhelmed shows
+  a **sad face** and a `▓▓` bar that has filled up.
+* **One sentence at a time.** The strip at the bottom talks in pictures — `:) LOOK AT THE HAPPY FACES GO`,
+  or `:( NOBODY TAKES THE PICTURES — tap the BOX tile on the right, then the board` — and `WAITING`
+  counts what is piling up outside, in icons.
+* **Everything is big.** The screen works in half-size cells so a picture is drawn at 2×4 cells (`: )` is
+  a real face), and the four games (`K01`-`K04`) each teach exactly one new picture with three or four
+  steps: look at the cloud, tap the house, tap the book, watch. No incidents, no timer pressure.
+* Keys: `1`-`5` tap a tile · `ENTER` put it down · `SPACE` stop/start · `ESC` back to the title.
 
 ## The loop
 
@@ -96,6 +132,7 @@ something else first, so it is impossible to build a topology the tutorial has n
   about the new box they introduce.
 * The mode lives in the title menu: **guided opening** (default), **every shift**, or **off**. A tour
   that has been finished or skipped is not shown again for that shift; it is remembered in the save.
+* PLAY MODE has its own picture tour (3-4 steps, one icon per card, no numbers), configured the same way.
 
 ## Codex
 
@@ -172,17 +209,22 @@ by doing nothing, if two runs of the same seed diverge, or if a level's drops ar
 prints drop reasons, worst nodes and advice per level, and `--perf` reports simulation cost against the
 16.7 ms frame budget (≈0.2 ms/tick with 11 000 packets in flight).
 
-`npm test` runs 24 checks: RNG streams and content tables, packet-pool layout (field aliasing would be
+`npm test` runs 32 checks: RNG streams and content tables, packet-pool layout (field aliasing would be
 caught here), directed connect/disconnect bookkeeping, economy, routing coverage for all seven traffic
 types, drop accounting, autoscaling, daily/endless determinism, terminal cell safety, every HUD screen,
 a full keyboard-and-mouse playthrough of L01 through the real game loop under a fake DOM/WebGL, the
 tutorial's step order and locks (including that a locked step refuses a click in the real game and that
-finishing or skipping is remembered), the codex's lock rules per tab, and the tutorial spotlight (focused
-cells stay at full brightness, everything else is dimmed).
+finishing or skipping is remembered), the codex's lock rules per tab, the tutorial spotlight (focused
+cells stay at full brightness, everything else is dimmed), the play-mode screens end to end (tapping tiles
+and the board, the picture tour, winning all four games, the end screen's one button) and two guard
+checks: every character the sources write has an atlas cell to be drawn with, and the tile rail, title
+menu and play board all fit inside the 160×50 grid.
 
 `node tools/shot.mjs --screen tut` and `--screen codex` print a real frame of the tour and the codex as
 text in the terminal, so both can be inspected without a browser — `docs/tutorial-and-codex.txt` is a dump
-of both, with no colour.
+of both, with no colour. `--screen kid [--level K03] [--tour]` and `--screen kidend` do the same for PLAY
+MODE; `docs/play-mode.txt` is a dump of those, and `node tools/glyphs.mjs --sheet` prints the icon atlas
+itself (every picture the game can draw).
 
 ## Research
 

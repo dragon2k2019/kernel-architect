@@ -177,7 +177,8 @@ function nodeEntries(ctx) {
     if (key === 'MONITOR') body.push('Carries no traffic. Its only job is unlocking the FLOW panel.');
     if (key === 'GATEWAY') body.push(`Shedding overload costs ${(SIM.REP_LOSS_THROTTLE * 100).toFixed(1)} reputation instead of ${(SIM.REP_LOSS_DROP * 100).toFixed(1)}.`);
     return {
-      key, title: def.name, sub: `${def.glyph}  ${def.role}${def.serves.length ? ' · finishes ' + def.serves.map((t) => TRAFFIC[t].key).join(', ') : ''}`,
+      key, title: def.name,
+      sub: `${def.glyph}  ${def.role}${def.serves.length ? ' · finishes ' + def.serves.map((t) => TRAFFIC[t].key).join(', ') : ''}${def.kidName ? `  ·  PLAY MODE: ${def.kidName} ${def.kidGlyph}` : ''}`,
       meta, body, seen: !!seen[key], locked: !seen[key] && key !== 'INTERNET',
       unlock: `Place one to unlock this entry.`,
     };
