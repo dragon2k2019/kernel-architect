@@ -9,14 +9,16 @@ instanced draw call for the screen, one for the packet sprites. No frameworks, n
 no network calls, no assets: `index.html` plus ES modules.
 
 ```
-npm run serve      # python3 -m http.server 8000  →  http://localhost:8000/
-npm test           # 32-check headless suite (units + simulation + the real game loop)
-npm run verify     # every level: reference playthrough, do-nothing run, determinism, drop analysis
-npm run verify L05 # one level with a full trace, drop reasons and advice
-npm run verify -- --perf 12000   # stress the simulation
+bun dev            # fast dev server               →  http://localhost:8000/
+bun run build      # bundle static assets into dist/
+bun run preview    # preview production build      →  http://localhost:4173/
+bun test           # 32-check headless suite (units + simulation + the real game loop)
+bun run verify     # every level: reference playthrough, do-nothing run, determinism, drop analysis
+bun run verify L05 # one level with a full trace, drop reasons and advice
+bun run verify -- --perf 12000   # stress the simulation
 ```
 
-Node 18+ is only needed for the headless tools; the game itself runs in any browser with WebGL2.
+Node 18+ or Bun is needed for the headless tools; the game itself runs in any modern browser with WebGL2.
 
 ## PLAY MODE — the same game, in pictures
 

@@ -6,12 +6,18 @@
   "description": "A deterministic ASCII/terminal infrastructure simulator: build a topology, route the traffic, survive the incident.",
   "license": "MIT",
   "scripts": {
-    "serve": "python3 -m http.server 8000",
-    "verify": "node tools/verify.mjs",
-    "test": "node tests/run.mjs",
-    "check": "node tools/verify.mjs && node tests/run.mjs"
+    "dev": "bun tools/dev.js",
+    "build": "bun build ./index.html --outdir ./dist --minify",
+    "preview": "bun tools/preview.js",
+    "serve": "bun tools/dev.js",
+    "verify": "bun tools/verify.mjs",
+    "test": "bun tests/run.mjs",
+    "check": "bun tools/verify.mjs && bun tests/run.mjs"
   },
   "engines": {
     "node": ">=18"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.4.2"
   }
 }

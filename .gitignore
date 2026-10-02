@@ -4,5 +4,7 @@ __pycache__/
 .local/
 node_modules/
 .npm/
+dist/
+.vercel/
 .env
 .DS_Store

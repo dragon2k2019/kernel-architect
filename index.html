@@ -40,7 +40,7 @@
       });
       window.addEventListener('unhandledrejection', function (ev) { show('KERNEL PANIC (promise)\n\n' + String(ev.reason && ev.reason.stack || ev.reason)); });
       if (location.protocol === 'file:') {
-        show('KERNEL PANIC\n\nThis game is built from native ES modules, so it must be served over HTTP.\n\nRun:  python3 -m http.server 8000\nthen open http://localhost:8000/');
+        show('KERNEL PANIC\n\nThis game is built from native ES modules, so it must be served over HTTP.\n\nRun:  bun dev\nthen open http://localhost:8000/');
       }
       if (!window.WebGL2RenderingContext) { show('KERNEL PANIC\n\nThis browser has no WebGL2 support. Try a recent Chrome, Firefox, Edge or Safari.'); }
     })();
