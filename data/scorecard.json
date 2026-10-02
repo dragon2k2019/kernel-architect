@@ -1,0 +1,119 @@
+{
+  "_readme": "Sub-scores are 1-5 (5 = best for the builder). Every score carries the evidence it rests on; change a score and re-run `python3 scripts/score.py` to see whether the pick changes. DEMAND = mean(d_hits, d_audience, d_momentum). UNDER_DELIVERY = mean(u_scarcity, u_quality, u_unmet). OPPORTUNITY INDEX = DEMAND x UNDER_DELIVERY (max 25) - multiplicative on purpose, so an empty niche with no demand cannot win. Build-fit lens (tech_fit, exec_ease, monetization) is a sanity check, not the primary criterion. Evidence snapshot: 2026-10-02.",
+  "games": {
+    "G1": {
+      "name": "Kernel Architect (Solution Architect / infra & system-design sim)",
+      "scores": {
+        "d_hits": 4,
+        "d_audience": 5,
+        "d_momentum": 5,
+        "u_scarcity": 5,
+        "u_quality": 4,
+        "u_unmet": 5,
+        "tech_fit": 5,
+        "exec_ease": 3,
+        "monetization": 5
+      },
+      "evidence": {
+        "d_hits": "Loop-level hits are proven: The Farmer Was Replaced >400k units / ~$1.65M in first 30 days of 1.0 (9.6k Steam reviews, 96%); Turing Complete 5.8k reviews; Mini Metro 16.8k; Factorio 235k. Caveat: pure-infra titles top out near ~1k reviews (Data Center 958).",
+        "d_audience": "47-48M developers worldwide (SlashData); system design is a core interview topic: ByteByteGo 1M+ newsletter subscribers / 5M+ learners claimed; system-design-primer has ~373k GitHub stars.",
+        "d_momentum": "Server Survival (free, MIT) reached ~6.4k GitHub stars + 710 forks in ~10 months; at least 3 more simulators appeared in the same window (InfraSim, SystemLore, PaperDraw); Data Center launched on Steam Mar 2026; Steam ran a Programming Fest Sep 2026.",
+        "u_scarcity": "Steam store search: 'devops' 0, 'microservices' 0, 'cloud architect' 0, 'site reliability' 0, 'kubernetes' 0-1 (Uptime: A Cloud Provider Sim, 58 reviews); 'sysadmin' only tiny titles (SysAdmin Odyssey, 42 reviews). No Steam title on software architecture; the closest are hardware/ISP sims.",
+        "u_quality": "Data Center (Waseku) is only 77% positive; 'Data Center Simulator Game' 20% (15 reviews); COLD AISLE 1 review; free web prototypes are not Steam-grade. Tower Networking Inc. is well rated (95%) but small (333 reviews).",
+        "u_unmet": "r/foss: 'Are there any other games like this?'; r/gameideas: Data Center 'routing and settings on servers are really limited'; r/devops feedback asks for observability, sandbox, time-of-day traffic.",
+        "tech_fit": "50k visible packets, deterministic seeds (daily challenge / shareable runs), flow visualisation are the product. Blueprint maps 1:1.",
+        "exec_ease": "Bounded scope, but model credibility and balance are hard; blueprint stack is heavier than gameplay strictly needs.",
+        "monetization": "Steam premium + free web demo + education/team licences + interview-prep packs."
+      }
+    },
+    "G2": {
+      "name": "Lexer & Scope: Day Zero (Business Analyst / requirements puzzle)",
+      "scores": {
+        "d_hits": 2,
+        "d_audience": 2,
+        "d_momentum": 2,
+        "u_scarcity": 5,
+        "u_quality": 5,
+        "u_unmet": 1,
+        "tech_fit": 2,
+        "exec_ease": 3,
+        "monetization": 2
+      },
+      "evidence": {
+        "d_hits": "Nothing BA-themed has sold. Adjacent only: Database Detective (SQL puzzle) 959 reviews / 97% in ~11 weeks; Papers, Please 80.6k reviews (bureaucracy, not BA).",
+        "d_audience": "BAs are not an observed game-buying cohort; Steam keyword 'business analyst' returns 0-3 irrelevant titles.",
+        "d_momentum": "Analyst-flavoured puzzle momentum exists (Database Detective) but nothing specific to requirements elicitation.",
+        "u_scarcity": "Effectively zero supply.",
+        "u_quality": "Nothing to be dissatisfied with.",
+        "u_unmet": "No evidence found of players or professionals asking for this.",
+        "tech_fit": "String scanning + DAG cycle detection is trivial; ECS/GPU/worker stack is overkill.",
+        "exec_ease": "Writing funny, readable client-ramble content at scale is the real work.",
+        "monetization": "Steam only; possible training angle but unvalidated."
+      }
+    },
+    "G3": {
+      "name": "Heisenbug Hunter (QA Engineer / bug-hunt & race-condition fuzzer)",
+      "scores": {
+        "d_hits": 3,
+        "d_audience": 3,
+        "d_momentum": 3,
+        "u_scarcity": 4,
+        "u_quality": 4,
+        "u_unmet": 2,
+        "tech_fit": 4,
+        "exec_ease": 3,
+        "monetization": 3
+      },
+      "evidence": {
+        "d_hits": "Adjacent anomaly/deduction hits are huge: The Exit 8 >3M copies (all platforms), No, I'm not a Human 31k reviews, Keep Talking and Nobody Explodes 17k. But QA-themed has no hit: QA Simulator (Feb 2026) has 7 reviews.",
+        "d_audience": "QA/dev audience is sizeable; the broader anomaly/deduction audience is far larger only if the game is reframed away from QA jargon.",
+        "d_momentum": "Anomaly genre boomed 2023-25 and is now clone-saturated (Anomaly Jobs: Data Center, etc.).",
+        "u_scarcity": "No premium QA/bug-hunting title; only QA Simulator (7 reviews) and hobby web games (itch/GitHub).",
+        "u_quality": "QA Simulator 57% on 7 reviews; others are jam/portfolio prototypes.",
+        "u_unmet": "Only scattered signals (r/QualityAssurance hobby game thread); no clear 'please make this' ask.",
+        "tech_fit": "Deterministic replay is core to the pitch; entity counts are modest.",
+        "exec_ease": "Making race-condition deduction legible and fun is a hard design problem.",
+        "monetization": "Steam + possible interview-screening / training angle (unvalidated)."
+      }
+    },
+    "G4": {
+      "name": "AST Archeology: Merge Conflict (Developer / ASCII code-dungeon roguelike)",
+      "scores": {
+        "d_hits": 4,
+        "d_audience": 3,
+        "d_momentum": 3,
+        "u_scarcity": 2,
+        "u_quality": 3,
+        "u_unmet": 2,
+        "tech_fit": 3,
+        "exec_ease": 2,
+        "monetization": 3
+      },
+      "evidence": {
+        "d_hits": "Roguelike/ASCII hits are proven: Dwarf Fortress >1M Steam copies (but only after swapping ASCII for hand-drawn tiles), Caves of Qud 12.7k reviews, Cogmind 2.0k. No code-themed roguelike has broken out.",
+        "d_audience": "Huge roguelike audience, but the ASCII x developer-theme overlap is narrow.",
+        "d_momentum": "Steady roguelike demand; no code-themed momentum signal. Hack 'n' Slash (code-as-combat) sits at 53% (Mixed).",
+        "u_scarcity": "Steam has ~5,150 roguelike and ~4,900 roguelite titles; ASCII/text leaders (Qud, Cogmind, Warsim, DF) are well-served.",
+        "u_quality": "Code-themed entrants are few and weak (NET.CRAWL 60 reviews; Hack 'n' Slash 53%), but the ASCII leaders sit at 95-96%.",
+        "u_unmet": "No specific unmet-demand evidence found.",
+        "tech_fit": "Glyph atlas fits; entity counts are small so ECS/workers add little.",
+        "exec_ease": "Roguelike content treadmill + AST-to-dungeon generator + boss design = large scope.",
+        "monetization": "Steam only."
+      }
+    }
+  },
+  "weights": {
+    "primary_composite": {
+      "opportunity": 0.6,
+      "tech_fit": 0.2,
+      "exec_ease": 0.1,
+      "monetization": 0.1
+    },
+    "builder_first": {
+      "opportunity": 0.3,
+      "tech_fit": 0.3,
+      "exec_ease": 0.25,
+      "monetization": 0.15
+    }
+  }
+}

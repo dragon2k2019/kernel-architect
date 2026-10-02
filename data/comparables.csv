@@ -1,0 +1,35 @@
+concept,query_name,steam_name,appid,developer,released,price,reviews,pct_positive,rating,steamspy_owners,median_playtime_min
+G1 infra / automation / system-design adjacent,Data Center,Data Center,4170200,Waseku,"Mar 31, 2026",$8.99,958,77,Mostly Positive,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Data Center Simulator Game,Data Center Simulator Game,1917160,DC Uplink,"Jul 6, 2026",$22.00,15,20,Mostly Negative,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Tower Networking Inc,Tower Networking Inc.,2939600,Pocosia Studios,"Jul 30, 2025",$19.99,333,95,Very Positive,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Hacknet,Hacknet,365450,Team Fractal Alligator,"Aug 12, 2015",$9.99,26158,94,Very Positive,"2,000,000 .. 5,000,000",0
+G1 infra / automation / system-design adjacent,Bitburner,Bitburner,1812820,,"Dec 10, 2021",Free,7433,95,Very Positive,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Turing Complete,Turing Complete,1444480,LevelHead,"Oct 2, 2021",$19.99,5821,96,Overwhelmingly Positive,"200,000 .. 500,000",0
+G1 infra / automation / system-design adjacent,The Farmer Was Replaced,The Farmer Was Replaced,2060160,Timon Herzog,"Oct 10, 2025",$9.99,9653,96,Overwhelmingly Positive,"200,000 .. 500,000",0
+G1 infra / automation / system-design adjacent,Screeps: World,Screeps: World,464350,"Screeps, LLC","Nov 16, 2016",$19.99,2098,86,Very Positive,"200,000 .. 500,000",0
+G1 infra / automation / system-design adjacent,Kaizen: A Factory Story,Kaizen: A Factory Story,2275490,Coincidence,"Jul 14, 2025",$19.99,722,92,Very Positive,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Mini Metro,Mini Metro,287980,Dinosaur Polo Club,"Nov 6, 2015",$9.99,16786,96,Overwhelmingly Positive,"500,000 .. 1,000,000",0
+G1 infra / automation / system-design adjacent,Factorio,Factorio,427520,Wube Software LTD.,"Aug 14, 2020",$35.00,235307,98,Overwhelmingly Positive,"5,000,000 .. 10,000,000",0
+G1 infra / automation / system-design adjacent,Software Inc.,Software Inc.,362620,Coredumping,"May 1, 2015",$22.99,7854,94,Very Positive,"100,000 .. 200,000",0
+G1 infra / automation / system-design adjacent,COLD AISLE: Data Center Tycoon,COLD AISLE: Data Center Tycoon,5036820,,"Aug 28, 2026",$11.99,1,0,1 user reviews,"0 .. 20,000",0
+G1 infra / automation / system-design adjacent,Silicon Sprint: Data Center Incremental,Silicon Sprint: Data Center Incremental,5145270,,"Nov 2, 2026",,0,,No user reviews,"0 .. 20,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,Database Detective: Minor Crimes Division,Database Detective: Minor Crimes Division,3950130,Thomas Hsu,"Jul 17, 2026",$14.99,959,97,Overwhelmingly Positive,"0 .. 20,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,"Papers, Please","Papers, Please",239030,Lucas Pope,"Aug 8, 2013",$9.99,80642,97,Overwhelmingly Positive,"2,000,000 .. 5,000,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,Return of the Obra Dinn,Return of the Obra Dinn,653530,Lucas Pope,"Oct 18, 2018",$19.99,35312,97,Overwhelmingly Positive,"500,000 .. 1,000,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,The Case of the Golden Idol,The Case of the Golden Idol,1677770,Color Gray Games,"Oct 13, 2022",$17.99,11017,98,Overwhelmingly Positive,"500,000 .. 1,000,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,Orwell: Keeping an Eye On You,Orwell: Keeping an Eye On You,491950,Osmotic Studios,"Oct 27, 2016",$9.99,15586,90,Very Positive,"1,000,000 .. 2,000,000",0
+G2 analyst / requirements / bureaucracy-puzzle adjacent,Hypnospace Outlaw,Hypnospace Outlaw,844590,"Tendershoot, Michael Lasch, ThatWhichIs Media","Mar 12, 2019",$19.99,5581,97,Overwhelmingly Positive,"200,000 .. 500,000",0
+G3 QA / bug-hunt / anomaly adjacent,QA Simulator,QA Simulator,2976690,MGTD SERVICES inc,"Feb 16, 2026",$12.99,7,57,7 user reviews,"0 .. 20,000",0
+G3 QA / bug-hunt / anomaly adjacent,The Exit 8,The Exit 8,2653790,KOTAKE CREATE,"Nov 29, 2023",$3.99,11664,93,Very Positive,"200,000 .. 500,000",0
+G3 QA / bug-hunt / anomaly adjacent,I'm on Observation Duty,I'm on Observation Duty,1046820,Notovia,"Apr 3, 2019",$2.99,2258,95,Overwhelmingly Positive,"50,000 .. 100,000",0
+G3 QA / bug-hunt / anomaly adjacent,That's Not My Neighbor,That's not my Neighbor,3431040,Nachosama Games,"Mar 11, 2025",$2.99,4767,89,Very Positive,"100,000 .. 200,000",0
+G3 QA / bug-hunt / anomaly adjacent,"No, I'm Not a Human","No, I'm not a Human",3180070,Trioskaz,"Sep 15, 2025",$14.99,31078,93,Very Positive,"0 .. 20,000",0
+G3 QA / bug-hunt / anomaly adjacent,Shinkansen 0,[Chilla's Art] Shinkansen 0 | 新幹線 0号,2793370,Chilla's Art,"Mar 22, 2024",$6.99,1150,85,Very Positive,"50,000 .. 100,000",0
+G3 QA / bug-hunt / anomaly adjacent,Keep Talking and Nobody Explodes,Keep Talking and Nobody Explodes,341800,Steel Crate Games,"Oct 8, 2015",$14.99,17162,97,Overwhelmingly Positive,"1,000,000 .. 2,000,000",0
+G3 QA / bug-hunt / anomaly adjacent,"Please, Don't Touch Anything","Please, Don’t Touch Anything",354240,Four Quarters,"Mar 26, 2015",$4.99,5602,89,Very Positive,"200,000 .. 500,000",0
+G4 ASCII / code roguelike,Dwarf Fortress,Dwarf Fortress,975370,Bay 12 Games,"Dec 6, 2022",$29.99,31553,95,Very Positive,"2,000,000 .. 5,000,000",0
+G4 ASCII / code roguelike,Caves of Qud,Caves of Qud,333640,Freehold Games,"Dec 5, 2024",$29.99,12681,95,Overwhelmingly Positive,"200,000 .. 500,000",0
+G4 ASCII / code roguelike,Cogmind,Cogmind,722730,Grid Sage Games,"Oct 16, 2017",$24.99,2014,96,Overwhelmingly Positive,"50,000 .. 100,000",0
+G4 ASCII / code roguelike,NET.CRAWL,NET.CRAWL,2958140,Everyone is Solid,"Aug 3, 2026",$9.99,60,97,Very Positive,"0 .. 20,000",0
+G4 ASCII / code roguelike,Warsim: The Realm of Aslona,Warsim: The Realm of Aslona,659540,Huw Millward,"Dec 20, 2022",$9.99,2223,96,Overwhelmingly Positive,"100,000 .. 200,000",0
+G4 ASCII / code roguelike,Hack 'n' Slash,Hack 'n' Slash,246070,Double Fine Productions,"Sep 9, 2014",$13.37,934,53,Mixed,"200,000 .. 500,000",0

@@ -1,0 +1,39 @@
+concept,query,steam_total_games,top100_with_500plus_reviews,top100_with_1000plus,top100_with_5000plus,median_pct_positive_of_established,top_title,top_title_reviews
+G1 Kernel Architect (infra / system-design sim),tag Programming,389,47,33,5,92,Stormworks: Build and Rescue,41862
+G1 Kernel Architect (infra / system-design sim),tag Programming + Automation,150,31,21,3,92,Stormworks: Build and Rescue,41862
+G1 Kernel Architect (infra / system-design sim),tag Programming + Management,58,14,10,1,89,Software Inc.,5620
+G1 Kernel Architect (infra / system-design sim),tag Programming + Tower Defense,8,2,1,0,89,The Perfect Tower II,3310
+G1 Kernel Architect (infra / system-design sim),tag Hacking + Management,33,7,4,1,73,Nodebuster,10650
+G1 Kernel Architect (infra / system-design sim),kw 'data center',72,14,5,2,87,Age of Empires IV: Anniversary Edition,28914
+G1 Kernel Architect (infra / system-design sim),kw 'network' + tag Simulation,610,55,41,18,92,The Forest,177946
+G1 Kernel Architect (infra / system-design sim),kw 'devops OR cloud OR server' (cloud),368,40,30,13,92,Cookie Clicker,54566
+G1 Kernel Architect (infra / system-design sim),kw 'system design',3099,70,55,20,96,Mount & Blade: Warband,55012
+G1 Kernel Architect (infra / system-design sim),kw 'devops',0,0,0,0,,,0
+G1 Kernel Architect (infra / system-design sim),kw 'kubernetes',1,0,0,0,,Uptime: A Cloud Provider Sim,58
+G1 Kernel Architect (infra / system-design sim),kw 'sysadmin',2,0,0,0,,SysAdmin Odyssey - Back to the office,42
+G1 Kernel Architect (infra / system-design sim),kw 'load balancer',122,27,20,5,83,Bloons TD Battles 2,24784
+G1 Kernel Architect (infra / system-design sim),kw 'microservices',0,0,0,0,,,0
+G1 Kernel Architect (infra / system-design sim),kw 'server admin',17,7,5,2,71,Conan Exiles Enhanced,39781
+G2 Lexer & Scope (BA / requirements puzzle),kw 'business analyst',3,1,0,0,65,Esports Manager 2026,788
+G2 Lexer & Scope (BA / requirements puzzle),kw 'requirements',5196,99,76,33,96,Garry's Mod,540751
+G2 Lexer & Scope (BA / requirements puzzle),kw 'scrum',14,1,0,0,77,"The Legend of Heroes: Kai no Kiseki -Farewell, O Zemuria-",770
+G2 Lexer & Scope (BA / requirements puzzle),kw 'project manager',508,40,30,7,93,Limbus Company,51192
+G2 Lexer & Scope (BA / requirements puzzle),tag Programming + Puzzle + Logic,140,21,14,1,94,Baba Is You,12655
+G2 Lexer & Scope (BA / requirements puzzle),tag Job Simulator + Programming,6,3,0,0,76,Data Center,936
+G3 Heisenbug Hunter (QA / bug-hunt),kw 'QA tester',4,0,0,0,,When Night Comes,51
+G3 Heisenbug Hunter (QA / bug-hunt),kw 'bug hunter',38,11,9,4,82,Hollow Knight,184578
+G3 Heisenbug Hunter (QA / bug-hunt),kw 'debug',64,7,2,0,86,Street Legal Racing: Redline v2.3.1,1968
+G3 Heisenbug Hunter (QA / bug-hunt),kw 'glitch' + tag Detective,5,0,0,0,,Greyhat - A Digital Detective Adventure,241
+G3 Heisenbug Hunter (QA / bug-hunt),tag Programming + Detective,17,8,4,1,90,Hacknet,7677
+G3 Heisenbug Hunter (QA / bug-hunt),tag Programming + Investigation,20,4,3,0,96,Arctic Eggs,3869
+G3 Heisenbug Hunter (QA / bug-hunt),"kw 'anomaly' (Exit-8-likes, adjacent)",702,36,26,8,93,Kerbal Space Program,84406
+G3 Heisenbug Hunter (QA / bug-hunt),kw 'spot the difference',90,16,10,3,86,Skater XL - The Ultimate Skateboarding Game,12728
+G4 AST Archeology (ASCII / code roguelike),tag Roguelike,5153,98,78,34,96,The Binding of Isaac: Rebirth,164729
+G4 AST Archeology (ASCII / code roguelike),tag Roguelike + Text-Based,79,14,7,0,89,A Legionary's Life,2180
+G4 AST Archeology (ASCII / code roguelike),tag Roguelike + Programming,21,7,4,0,89,The Perfect Tower II,3310
+G4 AST Archeology (ASCII / code roguelike),tag Roguelike + Hacking,33,5,4,0,89,Duskers,1983
+G4 AST Archeology (ASCII / code roguelike),kw 'ASCII',51,9,5,2,92,Content Warning,35344
+G4 AST Archeology (ASCII / code roguelike),tag Roguelike + Pixel Graphics,1884,58,45,17,96,The Binding of Isaac: Rebirth,164729
+Reference: genre-wide,tag Programming (all),389,47,33,5,92,Stormworks: Build and Rescue,41862
+Reference: genre-wide,tag Automation (all),1305,49,42,15,95,Schedule I,202322
+Reference: genre-wide,tag Roguelite (all),4886,91,73,34,96,The Binding of Isaac: Rebirth,164729
