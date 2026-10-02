@@ -1,0 +1,127 @@
+KERNEL ARCHITECT — the tutorial card and the codex, rendered as text.
+
+These are real frames of the running game, dumped by tools/shot.mjs (the HUD is a 160x50 cell grid,
+so it can be printed to a terminal). Regenerate with:
+
+    node tools/shot.mjs --screen tut --plain
+    node tools/shot.mjs --screen codex --plain
+
+Colour is lost here; in the game the spotlit cells are full brightness and everything else is dimmed.
+
+==============================================================================
+ 1. A TUTORIAL STEP — step 2 of L01: the zone is ringed in amber, the board and
+    every panel outside the step are dimmed, the BUILD panel shows what is
+    allowed, and the card carries the text, the progress dots and the buttons.
+==============================================================================
+
+ ▓ KERNEL ARCHITECT ░   L01 HELLO, WORLD            T+00:00/01:15     1×   ···                                      $380  UP $0.0/s  REP 100  ERR 0/90  LIVE 0  
+                                                                                                                       ┌─┤ OBJECTIVES ─├───────────────────────┐
+                                                                                                                       │ GOAL  ░░░░░░░░░░░░░░░░░░░░░░░░░░   0% │
+   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     · │ DONE    0         OF 420              │
+                 ◆ ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──◆                                        │ ERRORS      0 / 90    ░░░░░░░░░░░░░░░ │
+                 │                                                            │                                        │ REPUT.  ████████████████████████  100 │
+                                                                                                                       │ ★ 40 errors   ★ 400ms p99             │
+   ·     ·     · │   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·  │  ·     ·     ·     ·     ·     ·     · │                                       │
+                 │                                                            │                                        └───────────────────────────────────────┘
+                                                                                                                       ┌─┤ FLOW — NO MONITORING ─├─────────────┐
+                 │                                                            │                                        │ IN FLIGHT     0   PEAK     0          │
+   ·     ·     · │   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·  │  ·     ·     ·     ·     ·     ·     · │ DONE/S 0.0     DROPS 0                │
+                                                                                                                       │ Place an ◦ MONITORING node to         │
+                 │                                                            │                                        │ unlock latency, queue and drop        │
+                 │                                                            │                                        │ telemetry for the whole fleet.        │
+   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     · │                                       │
+                 │                ┌─────────────┐                             │                                        │ TRAFFIC            IN/s   DONE   ERR  │
+                 │                │    % APP    │                             │                                        │ ≡ STATIC    0     0      0            │
+                                  │    $130     │                                                                      │ R READ      8     0      0            │
+   ·     ·     · │   ·     ·     ·└─────────────┘  ·     ·     ·     ·     ·  │  ·     ·     ·     ·     ·     ·     · │ W WRITE     0     0      0            │
+   ┌@ NET     ●T1│                                                            │                                        └───────────────────────────────────────┘
+   │░░░░░░░░░  0%                                                                                                      ┌─┤ INSPECTOR ─├────────────────────────┐
+   │q   0/400    │                                                            │                                        │ Click a node to inspect it.           │
+   └─ out 0 ─────│   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·  │  ·     ·     ·     ·     ·     ·     · │                                       │
+                                                                                                                       │ Every box has a job:                  │
+                 ◆ ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ── ──◆                                        │ sources make traffic, transit         │
+                                                                                                                       │ boxes pass it on, sinks               │
+   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     · │ complete it, monitors watch.          │
+                                                                                                                       │ Wires only point one way.             │
+                                                                                                                       │ Right-click cancels the               │
+                                                                                                                       │ current mode.                         │
+   ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     ·     · │                                       │
+                                                                                                                       │                                       │
+  ╔══ TUTORIAL · STEP 2/7 ═════════════════════════════════════════════════════╗                                       └───────────────────────────────────────┘
+  ║ PLACE AN APP SERVER                                                        ║                                       ┌─┤ BUILD  $380 ─├──────────────────────┐
+  ║ Press [1] (or click ▸ % APP SERVER in the BUILD panel), then click inside  ║ ·     ·     ·     ·     ·     ·     · │ ▸1 % APP    $130  150/s    q240       │
+  ║ the highlighted zone. The app server does the application work, and it is  ║                                       │  2 ▤ SQL    ▓▓ LOCKED ▓▓              │
+  ║ the only node that lets traffic continue into the data tier. Cost $130     ║                                       │                                       │
+  ║ now, $1.30/s upkeep.                                                       ║                                       │                                       │
+  ║                                                                            ║ ·     ·     ·     ·     ·     ·     · │                                       │
+  ║                                                                            ║                                       │                                       │
+  ║ ▓▓░░░░░ 2/7                                                                ║                                       │                                       │
+  ║ [N] SKIP TO NEXT STEP   [ESC] END TUTORIAL                      [K] CODEX  ║                                       │                                       │
+  ╚════════════════════════════════════════════════════════════════════════════╝ ·     ·     ·     ·     ·     ·     · │                                       │
+                                                                                                                       │                                       │
+ 00:00  NOTHING ROUTES READ YET — connect a node that can serve it.                                                    │                                       │
+                                                                                                                       │                                       │
+                                                                                                                       │                                       │
+ ▸ NOTHING ROUTES READ YET — connect a node that can serve it.                                                         │                                       │
+ BUILD COMPUTE         [←↑↓→] move  [ENTER] place  [ESC] cancel                                                                         -------- SEED B76E7578  
+
+L01 HELLO, WORLD  t=0.0s running  done=0 err=0 rep=100 live=0 hash=C6E96637
+
+==============================================================================
+ 2. THE CODEX — NODES tab. Entries the player has met show ✓; everything else
+    reads LOCKED and explains how to unlock it. Some history was invented for
+    this dump (an app server and a database placed, traffic served).
+==============================================================================
+
+                                                                                                                                                                
+   ╔═══════════════════════════════════════════════════════════════════════  CODEX  ══════════════════════════════════════════════════════════════════ X ═══╗   
+   ║   [1] NODES   [2] TRAFFIC   [3] MECHANICS   [4] SHIFTS   [5] CONTROLS                                                                                  ║   
+   ║ ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────── ║   
+   ║                                                                                                                                                        ║   
+   ║  ▸ INTERNET                                ✓    │ INTERNET                                                                                             ║   
+   ║    FIREWALL                              LOCKED │ @  source                                                                                            ║   
+   ║    CDN                                   LOCKED │                                                                                                      ║   
+   ║    API GATEWAY                           LOCKED │ cost:       free                  capacity:   unlimited                                              ║   
+   ║    LOAD BALANCER                         LOCKED │ queue:      400                   upkeep:     $0.00/s                                                ║   
+   ║    APP SERVER                              ✓    │ role:       source                finishes:   —                                                      ║   
+   ║    MEMORY CACHE                          LOCKED │ upgrade:    —                     autoscale:  no                                                     ║   
+   ║    MESSAGE QUEUE                         LOCKED │                                                                                                      ║   
+   ║    RELATIONAL DB                           ✓    │ Your traffic source. Pre-placed. Everything must eventually be reachable from here.                  ║   
+   ║    NOSQL DB                              LOCKED │                                                                                                      ║   
+   ║    READ REPLICA                          LOCKED │                                                                                                      ║   
+   ║    SEARCH INDEX                          LOCKED │                                                                                                      ║   
+   ║    OBJECT STORAGE                        LOCKED │                                                                                                      ║   
+   ║    GPU INFERENCE                         LOCKED │                                                                                                      ║   
+   ║    MONITORING                            LOCKED │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                 │                                                                                                      ║   
+   ║                                                                                                                                                        ║   
+   ║                                                                                                                                                        ║   
+   ║                                                                                                                                                        ║   
+   ╚  [↑↓] entry   [←→] or [1-5] tab   [K]/[ESC] close                                              33/60 ENTRIES   unlocked as you meet them · [K] closes  ╝   
+                                                                                                                                                                
+
+L01 HELLO, WORLD  t=20.0s running  done=192 err=0 rep=100 live=17 hash=5515BD8F

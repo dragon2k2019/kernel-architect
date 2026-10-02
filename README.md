@@ -181,7 +181,8 @@ finishing or skipping is remembered), the codex's lock rules per tab, and the tu
 cells stay at full brightness, everything else is dimmed).
 
 `node tools/shot.mjs --screen tut` and `--screen codex` print a real frame of the tour and the codex as
-text in the terminal, so both can be inspected without a browser.
+text in the terminal, so both can be inspected without a browser — `docs/tutorial-and-codex.txt` is a dump
+of both, with no colour.
 
 ## Research
 
