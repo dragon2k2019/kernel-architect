@@ -5,15 +5,14 @@ import { loadProgress, payout, saveProgress, type Progress } from './game/store'
 import { sfx } from './game/sfx';
 import { Title } from './ui/Title';
 import { Play } from './ui/Play';
-import { Tutorial } from './ui/Tutorial';
+import { TUTORIALS } from './game/tutorial';
 import { FxLayer } from './ui/FxLayer';
 
-type Screen = { name: 'title' } | { name: 'level'; level: Level; attempt: number };
+type Screen = { name: 'title' } | { name: 'level'; level: Level; attempt: number; tutorial: boolean };
 
 export default function App() {
   const [screen, setScreen] = useState<Screen>({ name: 'title' });
   const [progress, setProgress] = useState<Progress>(loadProgress);
-  const [tutorial, setTutorial] = useState<null | { then?: Level }>(null);
 
   // Browsers only allow audio after a gesture.
   useEffect(() => {
@@ -36,23 +35,17 @@ export default function App() {
     });
   };
 
-  const start = (level: Level) => {
-    if (!progress.seenTutorial) { setTutorial({ then: level }); return; }
-    setScreen({ name: 'level', level, attempt: 0 });
-  };
+  // The hands-on tutorial plays inside the level, the first time you open it (or when replayed from the menu).
+  const open = (level: Level, force = false) =>
+    setScreen({ name: 'level', level, attempt: 0, tutorial: !!TUTORIALS[level.id] && (force || !progress.tuts[level.id]) });
 
-  const closeTutorial = () => {
-    const then = tutorial?.then;
-    setTutorial(null);
-    if (!progress.seenTutorial) update((p) => ({ ...p, seenTutorial: true }));
-    if (then) setScreen({ name: 'level', level: then, attempt: 0 });
-  };
+  const tutDone = (id: string) => update((p) => (p.tuts[id] ? p : { ...p, tuts: { ...p.tuts, [id]: true } }));
 
   let body;
   if (screen.name === 'title') {
-    body = <Title progress={progress} onPlay={start} onHelp={() => setTutorial({})} />;
+    body = <Title progress={progress} onPlay={(l) => open(l)} onHelp={() => open(LEVELS[0], true)} />;
   } else {
-    const { level, attempt } = screen;
+    const { level, attempt, tutorial } = screen;
     const nextLevel = LEVELS[level.n];
     body = (
       <Play
@@ -62,10 +55,11 @@ export default function App() {
         bank={progress.bank}
         hasNext={!!nextLevel}
         onFinish={finish}
-        onNext={() => nextLevel && setScreen({ name: 'level', level: nextLevel, attempt: 0 })}
-        onRetry={() => setScreen({ name: 'level', level, attempt: attempt + 1 })}
+        onNext={() => nextLevel && open(nextLevel)}
+        onRetry={() => setScreen({ name: 'level', level, attempt: attempt + 1, tutorial: false })}
         onMenu={() => setScreen({ name: 'title' })}
-        onHelp={() => setTutorial({})}
+        tutorial={tutorial}
+        onTutDone={() => tutDone(level.id)}
       />
     );
   }
@@ -73,7 +67,6 @@ export default function App() {
   return (
     <>
       {body}
-      {tutorial && <Tutorial onClose={closeTutorial} />}
       <FxLayer />
     </>
   );

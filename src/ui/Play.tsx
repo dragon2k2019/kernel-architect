@@ -5,9 +5,11 @@ import { coach } from '../game/coach';
 import { drawPackets } from '../game/draw';
 import { sfx } from '../game/sfx';
 import { fx } from '../game/particles';
+import { TUTORIALS, type TutStep } from '../game/tutorial';
 import { Board, type Hand, type Wiring } from './Board';
 import { TopBar } from './TopBar';
 import { Tray } from './Tray';
+import { TutorialLayer } from './TutorialLayer';
 import { BottomPanel, type PanelTab } from './BottomPanel';
 import { Intro, Result } from './Overlays';
 import { Dots, Tab } from './Chrome';
@@ -27,13 +29,28 @@ interface Props {
   onNext: () => void;
   onRetry: () => void;
   onMenu: () => void;
-  onHelp: () => void;
+  /** Show the hands-on tutorial for this level right away. */
+  tutorial: boolean;
+  onTutDone: () => void;
+}
+
+// The wallet bounces when a coin lands. Done with the Web Animations API so it never triggers a React render
+// (a coin shower used to re-render the whole game screen once per coin).
+let lastPulse = 0;
+function pulseWallet() {
+  const now = performance.now();
+  if (now - lastPulse < 120) return;
+  lastPulse = now;
+  document.getElementById('wallet')?.animate(
+    [{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }],
+    { duration: 260, easing: 'ease-out' },
+  );
 }
 
 const fileName = (l: Level) =>
   `${String(l.n).padStart(2, '0')}_${l.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}.arch`;
 
-export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, onMenu, onHelp }: Props) {
+export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, onMenu, tutorial, onTutDone }: Props) {
   const simRef = useRef<Sim>(null as unknown as Sim);
   if (!simRef.current) simRef.current = new Sim(level);
   const sim = simRef.current;
@@ -51,7 +68,10 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
   const [hand, setHandState] = useState<Hand | null>(null);
   const [wiring, setWiringState] = useState<Wiring | null>(null);
   const [toast, setToast] = useState<{ id: number; text: string; tone: 'bad' | 'good' } | null>(null);
-  const [walletKey, setWalletKey] = useState(0);
+  const steps = TUTORIALS[level.id];
+  const [tutOn, setTutOn] = useState(tutorial && !!steps);
+  const [tutRun, setTutRun] = useState(0); // bump to replay from the first card
+  const tutRef = useRef<TutStep | null>(null);
   const [quake, setQuake] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
@@ -93,7 +113,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
 
   // ---------- main loop ----------
   useEffect(() => {
-    fx.onCoinArrive = () => { sfx.coin(Math.random() * 3); setWalletKey((k) => k + 1); };
+    fx.onCoinArrive = () => { sfx.coin(Math.random() * 3); pulseWallet(); };
     let raf = 0;
     let last = performance.now();
     let acc = 0;
@@ -160,7 +180,14 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
     const loop = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
-      if (sim.status === 'running' && phaseRef.current === 'play') {
+      frame++;
+      const ph = phaseRef.current;
+      // Once the result screen is up the board is dead weight: stop simulating, drawing and re-rendering it,
+      // so every bit of CPU/GPU goes to the celebration.
+      if (ph === 'result') return;
+      const live = sim.status === 'running' && ph === 'play';
+      const frozen = !!tutRef.current?.freeze;
+      if (live && !frozen) {
         acc += dt * speedRef.current;
         let n = 0;
         while (acc >= STEP && n < 16 && sim.status === 'running') { sim.step(STEP); acc -= STEP; n++; }
@@ -168,10 +195,12 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
         drain();
         checkMilestones();
       }
-      if (canvasRef.current) drawPackets(canvasRef.current, sim);
-      if (++frame % 3 === 0) setTick((t) => t + 1);
+      // packets only move while running; when idle just refresh occasionally (covers canvas resizes)
+      if (ph === 'play' && canvasRef.current && ((live && !frozen) || frame % 20 === 0)) drawPackets(canvasRef.current, sim);
+      if (live && !frozen && frame % 3 === 0) setTick((t) => t + 1);
       if ((sim.status === 'won' || sim.status === 'lost') && !finished.current) {
         finished.current = true;
+        if (canvasRef.current) drawPackets(canvasRef.current, sim);
         setTick((t) => t + 1);
         onFinish(sim);
         timer = setTimeout(() => setPhase('result'), 900);
@@ -394,10 +423,30 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
     bump();
   };
 
+  // the Help buttons replay this level's tutorial
+  const replay = () => {
+    if (!steps || phaseRef.current !== 'play') return;
+    setHand(null); setWiring(null);
+    if (sim.status === 'running') { sim.pause(); }
+    setTutRun((k) => k + 1); setTutOn(true); bump();
+  };
+  const endTutorial = useCallback(() => {
+    tutRef.current = null;
+    setTutOn(false);
+    onTutDone();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // ---------- keyboard ----------
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
     if (document.querySelector('[data-modal]')) return;
+    // tutorial steps are locked: only the keys the current step asks for work
+    const ts = tutRef.current;
+    if (ts && phaseRef.current === 'play') {
+      if (ts.keys?.includes(e.key)) { e.preventDefault(); if (e.key === ' ') toggleGo(); }
+      return;
+    }
     if (phaseRef.current === 'intro') {
       if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sfx.click(); setPhase('play'); }
       return;
@@ -407,7 +456,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
     if (e.key === 'Escape') { setHand(null); setWiring(null); setSelected(null); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected !== null) { onSell(selected); return; }
     if (e.key === 'l' || e.key === 'L') { setPanelOpen((s) => !s); return; }
-    if (e.key === '?' || e.key === 'h' || e.key === 'H') { onHelp(); return; }
+    if (e.key === '?' || e.key === 'h' || e.key === 'H') { replay(); return; }
     const tool = level.tools.find((k) => NODE_DEFS[k].key === e.key);
     if (tool) armTool(tool);
   };
@@ -448,8 +497,8 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
       <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line bg-ink2 px-3 [@media(max-height:520px)]:hidden">
         <Dots onClose={onMenu} />
         <div className="flex-1 truncate text-center text-[11px] text-dim">{fileName(level)} - kernel-architect</div>
-        <button onClick={onHelp} title="How to play (?)" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-dim hover:bg-line hover:text-fg">
-          <Icon name="help" size={15} /><span className="hidden sm:inline">Help</span>
+        <button onClick={replay} title="Replay tutorial (?)" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-dim hover:bg-line hover:text-fg">
+          <Icon name="help" size={15} /><span className="hidden sm:inline">Tutorial</span>
         </button>
         <SoundToggle />
       </div>
@@ -460,7 +509,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
           {act('back', 'Back to menu', onMenu)}
           {act('folder', 'Components', () => {}, true)}
           {act('terminal', 'Toggle terminal (L)', () => setPanelOpen((o) => !o), panelOpen)}
-          {act('help', 'How to play (?)', onHelp)}
+          {act('help', 'Replay tutorial (?)', replay)}
         </div>
 
         <Tray
@@ -471,7 +520,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
         <main className="flex min-h-0 min-w-0 flex-1 flex-col">
           <div className="flex shrink-0 overflow-hidden border-b border-line bg-ink2">
             <Tab icon={level.icon} label={fileName(level)} active dirty={sim.status === 'planning'} color="#ffd34d" />
-            <Tab icon="book" label="README.md" onClick={onHelp} color="#ffc857" />
+            {steps && <Tab icon="book" label="tutorial.md" onClick={replay} color="#ffc857" />}
             <div className="ml-auto hidden items-center gap-3 px-3 text-[10.5px] text-dim lg:flex">
               <span className="flex items-center gap-1"><span className="kbd">Space</span> run</span>
               <span className="flex items-center gap-1"><span className="kbd">Del</span> sell</span>
@@ -479,7 +528,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
             </div>
           </div>
 
-          <TopBar sim={sim} speed={speed} goHint={!!showTarget?.go} walletKey={walletKey} onSpeed={setSpeed} onGo={toggleGo} />
+          <TopBar sim={sim} speed={speed} goHint={!!showTarget?.go} onSpeed={setSpeed} onGo={toggleGo} />
 
           <Board
             sim={sim} tick={tick} boardRef={boardRef} canvasRef={canvasRef}
@@ -525,7 +574,10 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
         <div className="text-xs text-dim">The board needs a wide screen.</div>
       </div>
 
-      {phase === 'intro' && <Intro level={level} onStart={() => { sfx.click(); setPhase('play'); }} onBack={onMenu} onHelp={onHelp} />}
+      {phase === 'intro' && <Intro level={level} onStart={() => { sfx.click(); setPhase('play'); }} onBack={onMenu} />}
+      {tutOn && steps && phase === 'play' && (
+        <TutorialLayer key={tutRun} steps={steps} sim={sim} tick={tick} stepRef={tutRef} onDone={endTutorial} />
+      )}
       {phase === 'result' && (
         <Result
           sim={sim} prevBest={startBest.current} prevBank={startBank.current} hasNext={hasNext}

@@ -61,8 +61,8 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
           <Icon name="coin" size={15} className="text-gold" />
           <b className="text-[12px] text-gold">${progress.bank.toLocaleString()}</b>
         </div>
-        <button onClick={onHelp} title="How to play" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-dim hover:bg-line hover:text-fg">
-          <Icon name="help" size={15} /><span className="hidden sm:inline">How to play</span>
+        <button onClick={onHelp} title="Replay the tutorial" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-dim hover:bg-line hover:text-fg">
+          <Icon name="help" size={15} /><span className="hidden sm:inline">Tutorial</span>
         </button>
         <SoundToggle />
       </div>
@@ -154,7 +154,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
 
               <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
                 <Btn big tone="ok" icon="play" onClick={() => play(next)} className="animate-glow">{started ? 'CONTINUE' : 'PLAY'}</Btn>
-                <Btn big tone="ghost" icon="book" onClick={onHelp}>How to play</Btn>
+                <Btn big tone="ghost" icon="book" onClick={onHelp}>Tutorial</Btn>
               </div>
               {started && <div className="mt-3 text-[11px] text-dim">next up: <span className="text-fg">{fileName(next)}</span></div>}
 

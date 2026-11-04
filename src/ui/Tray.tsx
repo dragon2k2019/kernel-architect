@@ -21,6 +21,7 @@ function ToolItem({ kind, cash, armed, hint, onDown }: { kind: Kind; cash: numbe
     <>
       <button
         {...hv.bind}
+        data-tut={`tool-${kind}`}
         onPointerEnter={(e) => { hv.bind.onPointerEnter(e); if (afford) sfx.hover(); }}
         onPointerDown={(e) => { hv.bind.onPointerDown(); onDown(kind, e); }}
         className={cn(

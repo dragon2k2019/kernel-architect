@@ -13,13 +13,12 @@ interface Props {
   sim: Sim;
   speed: number;
   goHint: boolean;
-  walletKey: number;
   onSpeed: (s: number) => void;
   onGo: () => void;
 }
 
 /** The run toolbar: Run/Pause, speed, goal progress, happiness, wallet. */
-export function TopBar({ sim, speed, goHint, walletKey, onSpeed, onGo }: Props) {
+export function TopBar({ sim, speed, goHint, onSpeed, onGo }: Props) {
   const goal = sim.level.goal;
   const pct = goal ? Math.min(100, (sim.ok / goal) * 100) : 0;
   const running = sim.status === 'running';
@@ -30,6 +29,7 @@ export function TopBar({ sim, speed, goHint, walletKey, onSpeed, onGo }: Props) 
       <button
         onClick={onGo}
         disabled={over}
+        data-tut="go"
         title="Space"
         className={cn(
           'flex shrink-0 items-center gap-2 rounded-xl px-4 py-2 text-sm font-black tracking-wide transition-all active:translate-y-[2px]',
@@ -56,7 +56,7 @@ export function TopBar({ sim, speed, goHint, walletKey, onSpeed, onGo }: Props) 
       </div>
 
       {/* goal */}
-      <div className="min-w-[100px] flex-1">
+      <div data-tut="goal" className="min-w-[100px] flex-1">
         {goal ? (
           <>
             <div className="flex items-baseline justify-between text-[11px]">
@@ -80,7 +80,7 @@ export function TopBar({ sim, speed, goHint, walletKey, onSpeed, onGo }: Props) 
       </div>
 
       {/* happiness */}
-      <div className="w-[88px] shrink-0 sm:w-[132px]" title="Visitor happiness. Failures drain it. Zero = outage.">
+      <div data-tut="happy" className="w-[88px] shrink-0 sm:w-[132px]" title="Visitor happiness. Failures drain it. Zero = outage.">
         <div className="flex items-center justify-between text-[11px]">
           <span className="flex items-center gap-1.5 text-dim"><Face mood={moodFor(hp)} size={14} /><span className="hidden sm:inline">happiness</span></span>
           <b className={hp > 55 ? 'text-ok' : hp > 25 ? 'text-warn' : 'text-bad'}>{Math.round(hp)}</b>
@@ -96,8 +96,8 @@ export function TopBar({ sim, speed, goHint, walletKey, onSpeed, onGo }: Props) 
       {/* wallet */}
       <div
         id="wallet"
-        key={walletKey}
-        className={cn('flex shrink-0 items-center gap-1.5 rounded-xl border border-gold/30 bg-gold/10 px-3 py-1.5', walletKey > 0 && 'animate-wallet')}
+        data-tut="wallet"
+        className="flex shrink-0 items-center gap-1.5 rounded-xl border border-gold/30 bg-gold/10 px-3 py-1.5"
         title="Cash. Earn it by serving visitors. Spend it on boxes."
       >
         <Icon name="coin" size={18} className="text-gold" />

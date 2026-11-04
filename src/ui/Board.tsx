@@ -83,6 +83,7 @@ export function Board(p: Props) {
       >
         <div
           ref={boardRef}
+          data-tut="board"
           onPointerDown={p.onBoardDown}
           onPointerMove={p.onBoardMove}
           className={cn(
@@ -223,6 +224,7 @@ function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
   return (
     <div
       data-node={n.id}
+      data-tut={`node-${n.kind}`}
       {...hv.bind}
       onPointerDown={(e) => { hv.bind.onPointerDown(); onDown(n.id, e); }}
       className={cn(
@@ -284,6 +286,7 @@ function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
       )}
       {n.kind !== 'db' && (
         <div
+          data-tut={`port-${n.kind}`}
           onPointerDown={(e) => { hv.bind.onPointerDown(); onPortDown(n.id, e); }}
           className="touch-none absolute -right-[17px] top-1/2 z-10 flex h-[34px] w-[34px] -translate-y-1/2 cursor-crosshair items-center justify-center"
           title="Drag to connect"

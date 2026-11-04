@@ -58,6 +58,7 @@ export function CardShell({ rect, side = 'right', width = 300, children, accent 
   return createPortal(
     <div
       ref={ref}
+      data-hovercard
       className="pointer-events-none fixed z-[80] overflow-hidden rounded-xl border bg-ink/95 shadow-[0_18px_50px_rgba(0,0,0,0.65)] backdrop-blur-md"
       style={{
         width: Math.min(width, window.innerWidth - 16),

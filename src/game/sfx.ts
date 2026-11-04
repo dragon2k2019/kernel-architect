@@ -9,6 +9,9 @@ class Sfx {
   private out: GainNode | null = null;
   private noiseBuf: AudioBuffer | null = null;
   private last: Record<string, number> = {};
+  /** Live oscillator/noise nodes. Capped so a big celebration cannot spawn hundreds of nodes in one tick. */
+  private voices = 0;
+  private static readonly MAX_VOICES = 64;
   muted = false;
 
   constructor() {
@@ -50,7 +53,7 @@ class Sfx {
   private get ok(): boolean { return !!this.ctx && !!this.out && !this.muted && this.ctx.state === 'running'; }
 
   private tone(freq: number, dur: number, o: { type?: Wave; vol?: number; at?: number; to?: number; attack?: number; detune?: number } = {}) {
-    if (!this.ok) return;
+    if (!this.ok || this.voices >= Sfx.MAX_VOICES) return;
     const c = this.ctx!;
     const t = c.currentTime + (o.at ?? 0);
     const osc = c.createOscillator();
@@ -65,6 +68,8 @@ class Sfx {
     g.gain.linearRampToValueAtTime(v, t + a);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     osc.connect(g).connect(this.out!);
+    this.voices++;
+    osc.onended = () => { this.voices--; osc.disconnect(); g.disconnect(); };
     osc.start(t);
     osc.stop(t + dur + 0.05);
   }
@@ -77,7 +82,7 @@ class Sfx {
   }
 
   private noise(dur: number, o: { vol?: number; at?: number; freq?: number; to?: number; q?: number; type?: BiquadFilterType } = {}) {
-    if (!this.ok || !this.noiseBuf) return;
+    if (!this.ok || !this.noiseBuf || this.voices >= Sfx.MAX_VOICES) return;
     const c = this.ctx!;
     const t = c.currentTime + (o.at ?? 0);
     const src = c.createBufferSource();
@@ -91,6 +96,8 @@ class Sfx {
     g.gain.setValueAtTime(o.vol ?? 0.2, t);
     g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     src.connect(f).connect(g).connect(this.out!);
+    this.voices++;
+    src.onended = () => { this.voices--; src.disconnect(); f.disconnect(); g.disconnect(); };
     src.start(t, Math.random());
     src.stop(t + dur + 0.05);
   }
@@ -170,7 +177,7 @@ class Sfx {
     if (!this.ok) return;
     this.tone(280, 1.5, { type: 'sine', vol: 0.12, to: 2600, attack: 0.3 });
     this.tone(420, 1.5, { type: 'triangle', vol: 0.07, to: 3900, attack: 0.3 });
-    for (let i = 0; i < 18; i++) this.bell(1400 + Math.random() * 2600, 0.35, 0.05, 0.1 + i * 0.075 + Math.random() * 0.05);
+    for (let i = 0; i < 7; i++) this.tone(1400 + Math.random() * 2600, 0.3, { type: 'triangle', vol: 0.05, at: 0.1 + i * 0.17 + Math.random() * 0.05 });
   }
   fanfare() {
     const seq = [523.25, 659.25, 783.99, 1046.5, 783.99, 1046.5, 1318.5];
@@ -195,12 +202,11 @@ class Sfx {
   starEmpty() { this.tone(180, 0.25, { type: 'triangle', vol: 0.14, to: 110 }); }
   coinShower(seconds = 2.5, density = 14) {
     if (!this.ok) return;
-    const n = Math.round(seconds * density);
+    // one tone per coin (not two), at most ~14 coins, evenly jittered: sounds the same, costs a third
+    const n = Math.min(14, Math.round(seconds * density * 0.35));
     for (let i = 0; i < n; i++) {
-      const at = Math.random() * seconds;
-      const f = 1250 + Math.random() * 900;
-      this.tone(f, 0.07, { type: 'square', vol: 0.03, at });
-      this.tone(f * 1.335, 0.28, { type: 'triangle', vol: 0.07, at: at + 0.05 });
+      const at = ((i + Math.random()) / n) * seconds;
+      this.tone(1250 + Math.random() * 1100, 0.22, { type: 'triangle', vol: 0.07, at });
     }
   }
   lose() {

@@ -5,22 +5,33 @@ The whole game lives inside a fake code editor: tabs, a file explorer, a termina
 
 ## How to play
 
-1. **Drag a box** from the *Components* list onto the board (or tap it, then tap the board).
-2. **Wire it up**: drag from a box's glowing dot to the next box. Click a wire to cut it.
-3. **Press RUN**: visitors (pages and data) flow through your wires. Serve enough of them before happiness hits zero.
+There is no manual. The first time you open a level, a **hands-on tutorial plays inside the real game**:
 
-An interactive tutorial (README.md window) explains the goal, objectives, every component, scoring and error codes.
-It opens on first launch and any time from the **How to play** button or the `?` key.
-
-Hover any component in the sidebar, or any box on the board, for an info card (what it does, real-life analogy,
-cost, speed, wiring rules, tips, and a nerd note).
+- Every step is **locked**. The screen is dimmed except for the one thing to use next (a spotlight), and everything else ignores clicks and keys.
+- Steps only advance when the **simulation** says you did it (a Server exists, the wire exists, the game is running), not when you click "next".
+- A small card names the box you are using (cost, speed, one-liner).
+- Levels 1-4 teach the new box with a short drag / wire / run drill. Levels 5-7 get a one-card heads-up.
+- Replay it any time from the **Tutorial** button. `skip` is always on the card.
 
 ## Rewards
 
 - Coins fly from your servers into your wallet while you serve visitors, with sound.
 - Checkpoint confetti at 25 / 50 / 75 % of a level.
+- Effects are cheap on purpose, see *Performance* below.
 - Winning plays a staged deploy pipeline, then a boom: magic swirl, confetti cannons, coin and cash fountains, stars revealed one by one, and a cash payout that counts up into your lifetime wallet.
 - All sound is synthesised with WebAudio (no audio files). Toggle it in the title bar.
+
+## Performance
+
+The reward engine (`src/game/particles.ts`) is built so a full victory celebration does not hurt the frame rate:
+
+- **Object pool**: one fixed typed array, swap-remove on death. No per-particle or per-frame allocation.
+- **Sprite atlas**: coins, bills, confetti, stars and glows are pre-rendered once; each particle is a `drawImage` (GPU). No `shadowBlur`, `fillText`, `roundRect` or `save/restore` in the hot loop.
+- **Dirty-rect clearing** and a canvas on its own compositor layer. The loop sleeps when nothing is alive.
+- **Adaptive quality**: a frame-time governor scales particle counts and canvas resolution down on slow devices and back up when there is headroom.
+- Audio has a voice cap, the board stops simulating / re-rendering once the result screen is up, and wallet pulses no longer re-render React.
+
+Measured headless (4x CPU throttle, same scripted L1 win): 4.4 fps before, 54.6 fps after, zero frames over 100 ms.
 
 ## No emoji
 

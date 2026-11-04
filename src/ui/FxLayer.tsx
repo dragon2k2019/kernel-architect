@@ -10,5 +10,5 @@ export function FxLayer() {
     window.addEventListener('resize', onResize);
     return () => { window.removeEventListener('resize', onResize); fx.attach(null); };
   }, []);
-  return <canvas ref={ref} className="pointer-events-none fixed left-0 top-0 z-[90]" />;
+  return <canvas ref={ref} className="fx-canvas pointer-events-none fixed left-0 top-0 z-[90]" />;
 }

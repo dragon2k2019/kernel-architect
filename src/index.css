@@ -67,8 +67,8 @@
   50% { box-shadow: 0 0 38px rgba(126, 231, 135, 0.75); }
 }
 @keyframes slam {
-  0% { transform: scale(3.2); opacity: 0; filter: blur(8px); }
-  60% { transform: scale(0.94); opacity: 1; filter: blur(0); }
+  0% { transform: scale(3.2); opacity: 0; }
+  60% { transform: scale(0.94); opacity: 1; }
   100% { transform: scale(1); opacity: 1; }
 }
 @keyframes starin {
@@ -77,7 +77,7 @@
 }
 @keyframes fadeup { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 @keyframes wallet {
-  0% { transform: scale(1); } 40% { transform: scale(1.22); filter: brightness(1.5); } 100% { transform: scale(1); }
+  0% { transform: scale(1); } 40% { transform: scale(1.22); } 100% { transform: scale(1); }
 }
 @keyframes shimmer { from { background-position: 200% 0; } to { background-position: -200% 0; } }
 @keyframes quake {
@@ -87,11 +87,11 @@
   80% { transform: translate(-2px, 1px); }
 }
 @keyframes glitch {
-  0% { transform: translate(0); filter: none; }
-  25% { transform: translate(-4px, 1px); filter: hue-rotate(60deg); }
-  50% { transform: translate(4px, -2px); filter: hue-rotate(-60deg) saturate(2); }
+  0% { transform: translate(0); }
+  25% { transform: translate(-4px, 1px); }
+  50% { transform: translate(4px, -2px); }
   75% { transform: translate(-2px, 2px); }
-  100% { transform: translate(0); filter: none; }
+  100% { transform: translate(0); }
 }
 @keyframes rays { to { transform: translate(-50%, -50%) rotate(360deg); } }
 
@@ -200,3 +200,39 @@ button { font-family: inherit; cursor: pointer; }
   animation: glowop 2.2s ease-in-out infinite;
 }
 @keyframes glowop { 0%, 100% { opacity: 0.2; } 50% { opacity: 0.85; } }
+
+/* the reward canvas lives on its own compositor layer and never takes part in layout/paint of the page */
+.fx-canvas { will-change: transform; contain: strict; transform: translateZ(0); }
+
+/* ---------- in-game tutorial ---------- */
+.tut-ring { position: fixed; pointer-events: none; border-radius: 12px; border: 2px solid #7ee787; }
+.tut-ring::after {
+  content: "";
+  position: absolute;
+  inset: -2px;
+  border-radius: inherit;
+  border: 2px solid #7ee787;
+  animation: ringpulse 1.3s ease-out infinite;
+}
+.tut-ring-static::after { display: none; }
+.tut-drop {
+  position: fixed;
+  pointer-events: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 124px;
+  height: 104px;
+  margin: -52px 0 0 -62px;
+  border: 2px dashed #7ee787;
+  border-radius: 12px;
+  background: rgba(126, 231, 135, 0.08);
+  color: #7ee787;
+  font-size: 11px;
+  font-weight: 700;
+  animation: bob 1.8s ease-in-out infinite;
+}
+@keyframes tutdot { 0%, 100% { opacity: 0.35; transform: scale(0.8); } 50% { opacity: 1; transform: scale(1.15); } }
+
+/* the tutorial has its own info cards: hide the hover cards while it is running */
+body.tutoring [data-hovercard] { display: none !important; }

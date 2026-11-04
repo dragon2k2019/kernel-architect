@@ -10,12 +10,12 @@ import { Face, Icon, NodeIcon } from './icons';
 
 const mmss = (t: number) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
 
-export function Intro({ level, onStart, onBack, onHelp }: { level: Level; onStart: () => void; onBack: () => void; onHelp: () => void }) {
+export function Intro({ level, onStart, onBack }: { level: Level; onStart: () => void; onBack: () => void }) {
   const tool = level.newTool ? NODE_DEFS[level.newTool] : null;
   useEffect(() => { sfx.open(); }, []);
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center bg-black/70 p-3">
-      <div className="max-h-full w-full max-w-md animate-pop overflow-y-auto rounded-2xl border border-line bg-panel shadow-[0_30px_90px_rgba(0,0,0,0.7)] scroll-thin">
+      <div className="max-h-full w-full max-w-sm animate-pop overflow-y-auto rounded-2xl border border-line bg-panel shadow-[0_30px_90px_rgba(0,0,0,0.7)] scroll-thin">
         <div className="flex h-9 items-center gap-3 border-b border-line bg-ink2 px-3">
           <Dots onClose={onBack} />
           <div className="flex-1 text-center text-[11px] text-dim">new_task.md</div>
@@ -29,32 +29,22 @@ export function Intro({ level, onStart, onBack, onHelp }: { level: Level; onStar
           <h2 className="mt-3 text-3xl font-black tracking-tight">{level.name}</h2>
           <p className="mt-2 text-[14px] text-fg/90">{level.blurb}</p>
 
-          <div className="mt-5 rounded-xl border border-ok/30 bg-ink px-4 py-3 text-left text-[12.5px]">
-            <div className="mb-2 flex items-center gap-2 text-[10px] font-bold uppercase tracking-[0.2em] text-ok"><Icon name="list" size={13} /> Objectives</div>
-            <ul className="space-y-1.5 text-fg">
-              <li className="flex items-center gap-2"><Icon name="target" size={15} className="text-ok" /><b>{level.goalText}</b></li>
-              <li className="flex items-center gap-2"><Icon name="heart" size={15} className="text-bad" />Don't let happiness hit zero</li>
-              {!level.endless && <li className="flex items-center gap-2"><Icon name="star" size={15} className="text-gold" />Bonus: 99% uptime = 3 stars</li>}
-              {level.endless && <li className="flex items-center gap-2"><Icon name="trophy" size={15} className="text-gold" />Beat your best score</li>}
-            </ul>
+          <div className="mt-4 flex items-center justify-center gap-2 rounded-xl border border-ok/30 bg-ink px-4 py-2.5 text-[13px]">
+            <Icon name="target" size={16} className="text-ok" /><b>{level.goalText}</b>
           </div>
 
           {tool && (
             <div className="mt-3 flex items-center gap-3 rounded-xl border border-dashed px-4 py-3 text-left" style={{ borderColor: tool.color + '88' }}>
-              <NodeIcon kind={tool.kind} size={34} color={tool.color} />
+              <NodeIcon kind={tool.kind} size={30} color={tool.color} />
               <div className="min-w-0">
-                <div className="text-[10px] font-bold uppercase tracking-widest text-ok">new component unlocked</div>
-                <div className="text-sm font-bold">{tool.label} <span className="font-normal text-dim">- {tool.tag}</span></div>
-                <div className="text-xs text-dim">{tool.blurb}</div>
+                <div className="text-[10px] font-bold uppercase tracking-widest text-ok">new box unlocked</div>
+                <div className="text-sm font-bold">{tool.label}</div>
               </div>
             </div>
           )}
 
           <Btn big tone="ok" icon="rocket" onClick={onStart} className="mt-6 w-full">Start level</Btn>
-          <div className="mt-3 flex items-center justify-center gap-5 text-xs text-dim">
-            <button onClick={onBack} className="flex items-center gap-1.5 hover:text-fg"><Icon name="back" size={13} /> menu</button>
-            <button onClick={onHelp} className="flex items-center gap-1.5 hover:text-fg"><Icon name="help" size={13} /> how to play</button>
-          </div>
+          <button onClick={onBack} className="mt-3 inline-flex items-center gap-1.5 text-xs text-dim hover:text-fg"><Icon name="back" size={13} /> menu</button>
         </div>
       </div>
     </div>
@@ -145,18 +135,18 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
       sfx.boom();
       later(100, () => sfx.fanfare());
       const tc = center(titleRef.current);
-      fx.swirl(w / 2, Math.max(120, tc.y), 260, 6);
+      fx.swirl(w / 2, Math.max(120, tc.y), 140, 6);
       sfx.swirl();
-      fx.confetti(0, h, -62, 120, 1);
-      fx.confetti(w, h, -118, 120, 1);
+      fx.confetti(0, h, -62, 80, 1);
+      fx.confetti(w, h, -118, 80, 1);
       sfx.pop(); later(160, () => sfx.pop());
-      fx.coinFountain(w * 0.12, 3.6, 50, -78);
-      fx.coinFountain(w * 0.88, 3.6, 50, -102);
+      fx.coinFountain(w * 0.12, 3.2, 26, -78);
+      fx.coinFountain(w * 0.88, 3.2, 26, -102);
       sfx.coinShower(3.4, 12);
-      later(600, () => fx.confettiRain(3.5, 45));
-      later(1200, () => fx.cashRain(3, 10));
+      later(600, () => fx.confettiRain(3, 30));
+      later(1200, () => fx.cashRain(2.5, 7));
       if (sim.stars === 3 || record) {
-        later(1000, () => { fx.cashFountain(w * 0.5, 3, 12); sfx.kaching(0.8); fx.confetti(w / 2, h, -90, 100, 0.9, 30); sfx.pop(); });
+        later(1000, () => { fx.cashFountain(w * 0.5, 2.5, 8); sfx.kaching(0.8); fx.confetti(w / 2, h, -90, 70, 0.9, 30); sfx.pop(); });
       }
     } else {
       sfx.lose(); sfx.glitch();
@@ -174,7 +164,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
             const c = center(starRefs.current[i]);
             fx.sparks(c.x, c.y, '#ffd34d', 26 + i * 8, 360);
             fx.ring(c.x, c.y, '#ffd34d', 180 + i * 40, 0.7);
-            if (i === 2) { fx.confetti(c.x, c.y, -90, 80, 0.8, 55); fx.swirl(c.x, c.y, 120, 4); sfx.swirl(); }
+            if (i === 2) { fx.confetti(c.x, c.y, -90, 60, 0.8, 55); fx.swirl(c.x, c.y, 80, 4); sfx.swirl(); }
           } else sfx.starEmpty();
         });
       }
@@ -227,7 +217,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
   return (
     <div className="absolute inset-0 z-40 flex items-center justify-center overflow-hidden bg-black/80 p-3">
       {boom && <div className={cn('flash pointer-events-none absolute inset-0 z-10', celebrate ? 'bg-white' : 'bg-bad')} />}
-      {boom && <div className={cn('pointer-events-none absolute left-1/2 top-1/2 h-[1500px] w-[1500px] animate-rays', celebrate ? 'rays' : 'rays-bad')} />}
+      {boom && <div className={cn('pointer-events-none absolute left-1/2 top-1/2 h-[1100px] w-[1100px] animate-rays will-change-transform', celebrate ? 'rays' : 'rays-bad')} />}
 
       <div className={cn(
         'relative z-20 flex max-h-full w-full max-w-md flex-col overflow-hidden rounded-2xl border bg-panel shadow-[0_30px_90px_rgba(0,0,0,0.8)]',

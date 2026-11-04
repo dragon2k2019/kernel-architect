@@ -1,7 +1,7 @@
-// Tiny localStorage save: stars per level, best endless score, lifetime wallet, tutorial flag.
+// Tiny localStorage save: stars per level, best endless score, lifetime wallet, which level tutorials were finished.
 import type { Sim } from './sim';
 
-export interface Progress { stars: Record<string, number>; best: number; bank: number; seenTutorial: boolean }
+export interface Progress { stars: Record<string, number>; best: number; bank: number; tuts: Record<string, boolean> }
 
 const KEY = 'kernel-architect.v3';
 
@@ -10,10 +10,11 @@ export function loadProgress(): Progress {
     const raw = localStorage.getItem(KEY) ?? localStorage.getItem('kernel-architect.v2');
     if (raw) {
       const p = JSON.parse(raw);
-      return { stars: p.stars ?? {}, best: p.best ?? 0, bank: p.bank ?? 0, seenTutorial: !!p.seenTutorial };
+      // older saves only had one global flag: that meant "the old how-to-play was read", so treat it as L1 done
+      return { stars: p.stars ?? {}, best: p.best ?? 0, bank: p.bank ?? 0, tuts: p.tuts ?? (p.seenTutorial ? { L1: true } : {}) };
     }
   } catch { /* ignore */ }
-  return { stars: {}, best: 0, bank: 0, seenTutorial: false };
+  return { stars: {}, best: 0, bank: 0, tuts: {} };
 }
 
 export function saveProgress(p: Progress) {
