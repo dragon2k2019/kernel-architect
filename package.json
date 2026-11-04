@@ -1,23 +1,29 @@
 {
-  "name": "kernel-architect",
-  "version": "1.0.0",
+  "name": "react-vite-tailwind",
   "private": true,
+  "version": "0.0.0",
   "type": "module",
-  "description": "A deterministic ASCII/terminal infrastructure simulator: build a topology, route the traffic, survive the incident.",
-  "license": "MIT",
   "scripts": {
-    "dev": "bun tools/dev.js",
-    "build": "bun build ./index.html --outdir ./dist --minify",
-    "preview": "bun tools/preview.js",
-    "serve": "bun tools/dev.js",
-    "verify": "bun tools/verify.mjs",
-    "test": "bun tests/run.mjs",
-    "check": "bun tools/verify.mjs && bun tests/run.mjs"
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
   },
-  "engines": {
-    "node": ">=18"
+  "dependencies": {
+    "clsx": "2.1.1",
+    "react": "19.2.6",
+    "react-dom": "19.2.6",
+    "tailwind-merge": "3.4.0"
   },
   "devDependencies": {
-    "@types/bun": "^1.4.2"
+    "@tailwindcss/vite": "4.1.17",
+    "@types/node": "22.19.17",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "5.1.1",
+    "tailwindcss": "4.1.17",
+    "tsx": "^4.23.15",
+    "typescript": "5.9.3",
+    "vite": "7.3.2",
+    "vite-plugin-singlefile": "2.3.0"
   }
 }
