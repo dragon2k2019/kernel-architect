@@ -4,7 +4,8 @@ import { BOARD_H, BOARD_W, NODE_H, NODE_W, Sim, type SNode } from '../game/sim';
 import { inPort, outPort, wirePath } from '../game/geom';
 import type { CoachTarget } from '../game/coach';
 import { cn } from '../utils/cn';
-import { LogPanel } from './LogPanel';
+import { NodeCard2, useHoverCard } from './HoverCard';
+import { Face, Icon, NodeIcon, ReqDot, type Mood } from './icons';
 
 export interface Hand { kind: Kind; x: number | null; y: number | null; dragging: boolean }
 export interface Wiring { from: number; x: number; y: number; armed: boolean; dragging: boolean }
@@ -18,7 +19,7 @@ interface Props {
   hand: Hand | null;
   wiring: Wiring | null;
   target?: CoachTarget;
-  showLog: boolean;
+  quake: boolean;
   onBoardDown: (e: RPE) => void;
   onBoardMove: (e: RPE) => void;
   onNodeDown: (id: number, e: RPE) => void;
@@ -27,15 +28,14 @@ interface Props {
   onSell: (id: number) => void;
 }
 
-function face(n: SNode): string {
+export function moodOf(n: SNode): Mood {
   const def = NODE_DEFS[n.kind];
-  if (n.down > 0) return '💀';
-  if (n.kind === 'internet') return '';
-  if (!def.queue) return '🙂';
+  if (n.down > 0) return 'dead';
+  if (!def.queue) return 'happy';
   const q = n.queue.length / def.queue;
-  if (q >= 0.75) return '🥵';
-  if (q >= 0.4) return '😅';
-  return n.cur || q > 0 ? '🙂' : '😴';
+  if (q >= 0.75) return 'hot';
+  if (q >= 0.4) return 'sweat';
+  return n.cur || q > 0 ? 'happy' : 'sleep';
 }
 
 export function Board(p: Props) {
@@ -75,7 +75,8 @@ export function Board(p: Props) {
   const sel = p.selected !== null ? nodeMap.get(p.selected) : undefined;
 
   return (
-    <div ref={wrapRef} className="relative min-h-0 flex-1 overflow-hidden">
+    <div ref={wrapRef} className="relative min-h-0 flex-1 overflow-hidden bg-ink">
+      <div className={cn('absolute inset-0', p.quake && 'animate-quake')}>
       <div
         className="absolute left-1/2 top-1/2"
         style={{ width: BOARD_W * scale, height: BOARD_H * scale, transform: 'translate(-50%, -50%)' }}
@@ -85,7 +86,7 @@ export function Board(p: Props) {
           onPointerDown={p.onBoardDown}
           onPointerMove={p.onBoardMove}
           className={cn(
-            'board-bg touch-none absolute left-0 top-0 origin-top-left overflow-hidden rounded-2xl border border-line shadow-[0_0_60px_rgba(122,162,247,0.08)]',
+            'board-bg touch-none absolute left-0 top-0 origin-top-left overflow-hidden rounded-xl border border-line shadow-[0_0_70px_rgba(122,162,247,0.1)]',
             p.hand && 'cursor-copy',
           )}
           style={{ width: BOARD_W, height: BOARD_H, transform: `scale(${scale})` }}
@@ -97,16 +98,16 @@ export function Board(p: Props) {
               if (!a || !b) return null;
               const d = wirePath(outPort(a), inPort(b));
               const dead = b.down > 0;
-              const col = dead ? '#f7768e' : NODE_DEFS[a.kind].color;
+              const col = dead ? '#ff6b8b' : NODE_DEFS[a.kind].color;
               return (
-                <g key={w.id} className="wire">
-                  <path className="wire-line" d={d} fill="none" stroke="#2b2f48" strokeWidth={5} strokeLinecap="round" />
+                <g key={w.id}>
+                  <path d={d} fill="none" stroke="#252941" strokeWidth={6} strokeLinecap="round" />
                   <path
-                    className={cn('wire-flow', running && 'animate-flow')}
-                    d={d} fill="none" stroke={col} strokeOpacity={0.85} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 10"
+                    className={cn(running && 'animate-flow')}
+                    d={d} fill="none" stroke={col} strokeOpacity={0.9} strokeWidth={3} strokeLinecap="round" strokeDasharray="2 10"
                   />
                   <path
-                    d={d} fill="none" stroke="transparent" strokeWidth={20}
+                    d={d} fill="none" stroke="transparent" strokeWidth={22}
                     style={{ pointerEvents: 'stroke', cursor: 'pointer' }}
                     onPointerDown={(e) => e.stopPropagation()}
                     onClick={() => p.onCut(w.id)}
@@ -119,21 +120,17 @@ export function Board(p: Props) {
             {p.wiring && nodeMap.get(p.wiring.from) && (
               <path
                 d={wirePath(outPort(nodeMap.get(p.wiring.from)!), { x: p.wiring.x, y: p.wiring.y })}
-                fill="none" stroke="#9ece6a" strokeWidth={3} strokeDasharray="7 6" strokeLinecap="round"
+                fill="none" stroke="#7ee787" strokeWidth={3} strokeDasharray="7 6" strokeLinecap="round"
               />
             )}
           </svg>
 
           {/* packets */}
-          <canvas
-            ref={canvasRef}
-            className="pointer-events-none absolute left-0 top-0"
-            style={{ width: BOARD_W, height: BOARD_H }}
-          />
+          <canvas ref={canvasRef} className="pointer-events-none absolute left-0 top-0" style={{ width: BOARD_W, height: BOARD_H }} />
 
           {/* nodes */}
           {sim.nodes.map((n) => (
-            <NodeCard
+            <NodeWindow
               key={n.id} sim={sim} n={n}
               selected={p.selected === n.id}
               wiring={p.wiring}
@@ -145,11 +142,11 @@ export function Board(p: Props) {
           {/* ghost while placing */}
           {ghost && (
             <div
-              className={cn('pointer-events-none absolute flex flex-col items-center justify-center rounded-xl border-2 border-dashed', ghost.ok ? 'border-ok bg-ok/10' : 'border-bad bg-bad/10')}
+              className={cn('pointer-events-none absolute flex flex-col items-center justify-center rounded-lg border-2 border-dashed', ghost.ok ? 'border-ok bg-ok/10' : 'border-bad bg-bad/10')}
               style={{ left: ghost.x, top: ghost.y, width: NODE_W, height: NODE_H }}
             >
-              <span className="text-3xl opacity-80">{NODE_DEFS[ghost.kind].icon}</span>
-              <span className="text-[10px] text-dim">{ghost.ok ? 'drop here' : 'no room / no $'}</span>
+              <NodeIcon kind={ghost.kind} size={30} color={NODE_DEFS[ghost.kind].color} />
+              <span className="mt-1 text-[10px] text-dim">{ghost.ok ? 'drop here' : 'no room / no cash'}</span>
             </div>
           )}
 
@@ -157,14 +154,14 @@ export function Board(p: Props) {
           {sel && sel.kind !== 'internet' && !p.wiring && (
             <div
               className="absolute z-20 -translate-x-1/2"
-              style={{ left: sel.x + NODE_W / 2, top: Math.max(4, sel.y - 38) }}
+              style={{ left: sel.x + NODE_W / 2, top: Math.max(4, sel.y - 40) }}
               onPointerDown={(e) => e.stopPropagation()}
             >
               <button
                 onClick={() => p.onSell(sel.id)}
-                className="whitespace-nowrap rounded-lg border border-bad/60 bg-panel px-3 py-1.5 text-xs font-bold text-bad shadow-lg hover:bg-bad hover:text-ink"
+                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-bad/60 bg-panel px-3 py-1.5 text-xs font-bold text-bad shadow-lg hover:bg-bad hover:text-ink"
               >
-                🗑 Sell +${sim.sellValue(sel.id)}
+                <Icon name="trash" size={14} /> Sell +${sim.sellValue(sel.id)}
               </button>
             </div>
           )}
@@ -174,24 +171,17 @@ export function Board(p: Props) {
             <div
               key={f.id}
               className="pointer-events-none absolute z-10 animate-floatup text-[13px] font-extrabold"
-              style={{ left: f.x, top: f.y, color: f.color, textShadow: '0 1px 4px #000' }}
+              style={{ left: f.x, top: f.y, color: f.color, textShadow: '0 1px 6px #000' }}
             >
               {f.text}
             </div>
           ))}
 
-          {/* live metrics */}
-          <div className="pointer-events-none absolute left-3 top-3 flex flex-wrap gap-1.5 text-[11px]">
-            <Chip label="traffic" value={`${sim.traffic.toFixed(1)}/s`} tone={sim.spiking ? 'bad' : 'cyan'} />
-            <Chip label="uptime" value={`${(sim.uptime * 100).toFixed(1)}%`} tone={sim.uptime >= 0.99 ? 'ok' : sim.uptime >= 0.95 ? 'warn' : 'bad'} />
-            <Chip label="p95" value={`${Math.round(sim.p95)}ms`} tone={sim.p95 > 400 ? 'warn' : 'dim'} />
+          {/* legend */}
+          <div className="pointer-events-none absolute bottom-3 left-3 flex gap-3 rounded-lg border border-line/60 bg-ink/70 px-2.5 py-1.5 text-[11px] text-dim backdrop-blur">
+            <span className="flex items-center gap-1.5"><ReqDot type="page" color={REQ.page.color} size={9} /> page</span>
+            <span className="flex items-center gap-1.5"><ReqDot type="data" color={REQ.data.color} size={9} /> data</span>
           </div>
-          <div className="pointer-events-none absolute bottom-3 left-3 flex gap-3 rounded-lg bg-ink/60 px-2.5 py-1.5 text-[11px] text-dim">
-            <span><span style={{ color: REQ.page.color }}>●</span> page</span>
-            <span><span style={{ color: REQ.data.color }}>■</span> data</span>
-          </div>
-
-          {p.showLog && <LogPanel sim={sim} />}
 
           {/* event banner */}
           {sim.banner && (
@@ -199,46 +189,44 @@ export function Board(p: Props) {
               <div
                 key={sim.banner.text}
                 className={cn(
-                  'animate-shake rounded-xl border px-5 py-2 text-sm font-extrabold shadow-xl backdrop-blur',
+                  'flex animate-shake items-center gap-2 rounded-xl border px-5 py-2 text-sm font-extrabold shadow-xl backdrop-blur',
                   sim.banner.kind === 'bad' ? 'border-bad bg-bad/20 text-bad' : 'border-warn bg-warn/15 text-warn',
                 )}
               >
+                <Icon name={sim.banner.kind === 'bad' ? 'skull' : 'warn'} size={16} />
                 {sim.banner.text}
               </div>
             </div>
           )}
         </div>
       </div>
+      </div>
     </div>
   );
 }
 
-function Chip({ label, value, tone }: { label: string; value: string; tone: 'ok' | 'warn' | 'bad' | 'cyan' | 'dim' }) {
-  const c = { ok: 'text-ok', warn: 'text-warn', bad: 'text-bad', cyan: 'text-cyan', dim: 'text-fg' }[tone];
-  return (
-    <span className="rounded-lg bg-ink/70 px-2 py-1 text-dim">
-      {label} <b className={c}>{value}</b>
-    </span>
-  );
-}
-
-function NodeCard({ sim, n, selected, wiring, target, onDown, onPortDown }: {
+function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
   sim: Sim; n: SNode; selected: boolean; wiring: Wiring | null; target?: CoachTarget;
   onDown: Props['onNodeDown']; onPortDown: Props['onPortDown'];
 }) {
   const def = NODE_DEFS[n.kind];
+  const hv = useHoverCard();
   const down = n.down > 0;
   const q = def.queue ? n.queue.length / def.queue : 0;
   const isTarget = target?.node === n.id;
   const wiringValid = wiring ? wiring.from !== n.id && sim.canWire(wiring.from, n.id).ok : false;
   const dimmed = wiring && wiring.from !== n.id && !wiringValid;
   const portHint = target?.port === n.id && !wiring;
+  const mood: Mood | null = n.kind === 'internet' ? null : moodOf(n);
+  const dot = down ? '#ff6b8b' : q >= 0.75 ? '#ff6b8b' : q >= 0.4 ? '#ffc857' : '#7ee787';
+
   return (
     <div
       data-node={n.id}
-      onPointerDown={(e) => onDown(n.id, e)}
+      {...hv.bind}
+      onPointerDown={(e) => { hv.bind.onPointerDown(); onDown(n.id, e); }}
       className={cn(
-        'touch-none absolute flex flex-col rounded-xl border-2 bg-panel px-2 pb-1.5 pt-1.5 transition-[opacity,filter] duration-150',
+        'touch-none absolute flex flex-col overflow-visible rounded-lg border-2 bg-panel transition-[opacity,filter] duration-150',
         n.kind !== 'internet' && 'cursor-grab active:cursor-grabbing',
         down && 'opacity-60 grayscale',
         dimmed && 'opacity-40',
@@ -247,41 +235,46 @@ function NodeCard({ sim, n, selected, wiring, target, onDown, onPortDown }: {
       )}
       style={{
         left: n.x, top: n.y, width: NODE_W, height: NODE_H,
-        borderColor: down ? '#f7768e' : wiringValid ? '#9ece6a' : def.color + 'bb',
-        background: `linear-gradient(160deg, ${def.color}18, #1a1b26 55%)`,
+        borderColor: down ? '#ff6b8b' : wiringValid ? '#7ee787' : def.color + 'cc',
+        background: `linear-gradient(165deg, ${def.color}1c, #151722 60%)`,
         boxShadow: selected
-          ? `0 0 0 3px ${def.color}55, 0 0 26px ${def.color}55`
-          : wiringValid ? '0 0 0 4px rgba(158,206,106,0.35)' : '0 8px 20px rgba(0,0,0,0.45)',
+          ? `0 0 0 3px ${def.color}55, 0 0 28px ${def.color}66`
+          : wiringValid ? '0 0 0 4px rgba(126,231,135,0.35)' : '0 8px 22px rgba(0,0,0,0.5)',
       }}
     >
-      <div className="flex items-start justify-between leading-none">
-        <span className="text-[26px]" style={{ filter: `drop-shadow(0 0 8px ${def.color}88)` }}>{def.icon}</span>
-        <span className="text-lg">{face(n)}</span>
+      {/* mini title bar */}
+      <div className="flex h-[17px] shrink-0 items-center gap-1 rounded-t-[5px] border-b border-white/5 bg-black/30 px-1.5">
+        <span className="h-[6px] w-[6px] rounded-full" style={{ background: dot, boxShadow: `0 0 6px ${dot}` }} />
+        <span className="h-[6px] w-[6px] rounded-full bg-white/15" />
+        <span className="h-[6px] w-[6px] rounded-full bg-white/15" />
+        <span className="ml-1 min-w-0 flex-1 truncate text-[9px] leading-none text-dim">{down ? `reboot ${Math.ceil(n.down)}s` : n.name}</span>
       </div>
-      <div className="mt-0.5 truncate text-[11px] font-bold leading-tight text-fg">{def.label}</div>
-      <div className="truncate text-[10px] leading-tight text-dim">{down ? `rebooting ${Math.ceil(n.down)}s…` : n.name}</div>
-      <div className="mt-auto flex h-[10px] items-center gap-[3px]">
-        {def.queue > 0 ? (
-          <>
-            <span
-              className={cn('h-2.5 w-3 shrink-0 rounded-[3px]', n.cur && 'animate-pulse')}
-              style={{ background: n.cur ? REQ[n.cur.type].color : '#2a2e45' }}
-              title="working on"
-            />
-            <span className="mx-px h-2.5 w-px shrink-0 bg-line" />
-            {Array.from({ length: def.queue }, (_, i) => (
+
+      <div className="flex min-h-0 flex-1 flex-col px-2 pb-1.5 pt-1">
+        <div className="flex items-center justify-between leading-none">
+          <NodeIcon kind={n.kind} size={26} color={def.color} />
+          {mood && <Face mood={mood} size={20} />}
+        </div>
+        <div className="mt-1 truncate text-[11px] font-bold leading-tight text-fg">{def.label}</div>
+
+        <div className="mt-auto flex h-[10px] items-center gap-[3px]">
+          {def.queue > 0 ? (
+            <>
               <span
-                key={i}
-                className="h-2 flex-1 rounded-[2px]"
-                style={{ background: n.queue[i] ? REQ[n.queue[i].type].color : '#2a2e45' }}
+                className={cn('h-2.5 w-3 shrink-0 rounded-[3px]', n.cur && 'animate-pulse')}
+                style={{ background: n.cur ? REQ[n.cur.type].color : '#2a2e45' }}
               />
-            ))}
-          </>
-        ) : n.kind === 'internet' ? (
-          <span className="text-[10px] text-cyan">{sim.status === 'running' ? `${sim.traffic.toFixed(1)} req/s` : 'visitors'}</span>
-        ) : (
-          <span className="text-[10px] text-dim">↦ {n.handled}</span>
-        )}
+              <span className="mx-px h-2.5 w-px shrink-0 bg-line" />
+              {Array.from({ length: def.queue }, (_, i) => (
+                <span key={i} className="h-2 flex-1 rounded-[2px]" style={{ background: n.queue[i] ? REQ[n.queue[i].type].color : '#2a2e45' }} />
+              ))}
+            </>
+          ) : n.kind === 'internet' ? (
+            <span className="text-[10px] text-cyan">{sim.status === 'running' ? `${sim.traffic.toFixed(1)} req/s` : 'visitors'}</span>
+          ) : (
+            <span className="text-[10px] text-dim">handled {n.handled}</span>
+          )}
+        </div>
       </div>
 
       {n.kind !== 'internet' && (
@@ -291,16 +284,17 @@ function NodeCard({ sim, n, selected, wiring, target, onDown, onPortDown }: {
       )}
       {n.kind !== 'db' && (
         <div
-          onPointerDown={(e) => onPortDown(n.id, e)}
+          onPointerDown={(e) => { hv.bind.onPointerDown(); onPortDown(n.id, e); }}
           className="touch-none absolute -right-[17px] top-1/2 z-10 flex h-[34px] w-[34px] -translate-y-1/2 cursor-crosshair items-center justify-center"
           title="Drag to connect"
         >
           <span
-            className={cn('block h-[18px] w-[18px] rounded-full border-2 border-ink transition-transform hover:scale-125', portHint && 'animate-ring')}
+            className={cn('relative block h-[18px] w-[18px] rounded-full border-2 border-ink transition-transform hover:scale-125', portHint && 'animate-ring')}
             style={{ background: def.color, boxShadow: `0 0 12px ${def.color}` }}
           />
         </div>
       )}
+      <NodeCard2 node={n} rect={hv.rect} ins={sim.ins(n.id).length} outs={sim.outs(n.id).length} />
     </div>
   );
 }

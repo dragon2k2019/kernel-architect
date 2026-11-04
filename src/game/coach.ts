@@ -16,7 +16,7 @@ const WANT: Record<string, Want> = {
   L7: { cache: true, lb: true, servers: 3, dbs: 2 },
 };
 
-const I = (k: Kind) => NODE_DEFS[k].icon;
+const I = (k: Kind) => NODE_DEFS[k].label;
 
 export function coach(sim: Sim): Coach {
   const st = sim.status;
@@ -30,21 +30,21 @@ export function coach(sim: Sim): Coach {
   const dbs = sim.nodes.filter((n) => n.kind === 'db');
   const inet = sim.internetId;
 
-  if (want.cache && !first('cache')) return { text: `Add a ${I('cache')} Cache. It answers most requests instantly.`, tone: 'info', target: { tool: 'cache' } };
-  if (want.lb && !first('lb')) return { text: `Add a ${I('lb')} Load Balancer. It splits the crowd.`, tone: 'info', target: { tool: 'lb' } };
+  if (want.cache && !first('cache')) return { text: `Add a Cache. It answers most requests instantly.`, tone: 'info', target: { tool: 'cache' } };
+  if (want.lb && !first('lb')) return { text: `Add a Load Balancer. It splits the crowd.`, tone: 'info', target: { tool: 'lb' } };
   if (servers.length < want.servers) {
     const text = sim.level.id === 'L1'
-      ? `Drag a ${I('server')} Server onto the board.`
+      ? `Drag a Server onto the board.`
       : sim.level.id === 'L2'
-        ? `Traffic will reach 10/s. One ${I('server')} handles 3/s. Build ${want.servers}. (${servers.length}/${want.servers})`
-        : `Add ${I('server')} Servers. (${servers.length}/${want.servers})`;
+        ? `Traffic will reach 10/s. One Server handles 3/s. Build ${want.servers}. (${servers.length}/${want.servers})`
+        : `Add Servers. (${servers.length}/${want.servers})`;
     return { text, tone: 'info', target: { tool: 'server' } };
   }
   if (dbs.length < want.dbs) {
     return {
       text: sim.level.id === 'L6' || sim.level.id === 'L7'
-        ? `Boxes crash. Build 2 ${I('db')} Databases so one can fail. (${dbs.length}/${want.dbs})`
-        : `Data needs a ${I('db')} Database. Add one.`,
+        ? `Boxes crash. Build 2 Databases so one can fail. (${dbs.length}/${want.dbs})`
+        : `Data needs a Database. Add one.`,
       tone: 'info', target: { tool: 'db' },
     };
   }
@@ -52,15 +52,15 @@ export function coach(sim: Sim): Coach {
   // wiring, front to back
   const head = want.cache ? 'cache' : want.lb ? 'lb' : 'server';
   if (!linked('internet', head)) {
-    return { text: `Connect: drag from the dot on ${I('internet')} to the ${I(head)}.`, tone: 'info', target: { port: inet } };
+    return { text: `Connect: drag from the dot on the Internet to the ${I(head)}.`, tone: 'info', target: { port: inet } };
   }
   if (want.cache && want.lb && !linked('cache', 'lb')) {
-    return { text: `Connect ${I('cache')} to ${I('lb')}.`, tone: 'info', target: { port: first('cache')!.id } };
+    return { text: 'Connect the Cache to the Load Balancer.', tone: 'info', target: { port: first('cache')!.id } };
   }
   const front = want.lb ? first('lb')! : want.cache ? first('cache')! : null;
   if (front) {
     const missing = servers.find((s) => !sim.wires.some((w) => w.from === front.id && w.to === s.id));
-    if (missing) return { text: `Connect ${I(front.kind)} to every ${I('server')}.`, tone: 'info', target: { port: front.id } };
+    if (missing) return { text: `Connect the ${I(front.kind)} to every Server.`, tone: 'info', target: { port: front.id } };
   }
   if (want.dbs > 0) {
     const need = Math.min(want.dbs, dbs.length);
@@ -68,30 +68,30 @@ export function coach(sim: Sim): Coach {
     if (lacking) {
       return {
         text: need > 1
-          ? `Connect every ${I('server')} to both ${I('db')} Databases.`
-          : `Connect every ${I('server')} to the ${I('db')} Database.`,
+          ? 'Connect every Server to both Databases.'
+          : 'Connect every Server to the Database.',
         tone: 'info', target: { port: lacking.id },
       };
     }
   }
-  return { text: 'All wired. Press ▶ GO!', tone: 'good', target: { go: true } };
+  return { text: 'All wired. Press RUN!', tone: 'good', target: { go: true } };
 }
 
 function runningCoach(sim: Sim): Coach {
-  if (sim.status === 'paused') return { text: 'Paused. Fix things, then press ▶ GO.', tone: 'info', target: { go: true } };
+  if (sim.status === 'paused') return { text: 'Paused. Fix things, then press RUN.', tone: 'info', target: { go: true } };
   const code = sim.recentFailCode;
   if (code && FAIL_HELP[code]) return { text: FAIL_HELP[code], tone: 'bad' };
-  let worst: { id: number; r: number; label: string; icon: string } | null = null;
+  let worst: { id: number; r: number; label: string } | null = null;
   for (const n of sim.nodes) {
     const def = NODE_DEFS[n.kind];
     if (def.queue > 0 && n.down <= 0) {
       const r = n.queue.length / def.queue;
-      if (r >= 0.6 && (!worst || r > worst.r)) worst = { id: n.id, r, label: def.label, icon: def.icon };
+      if (r >= 0.6 && (!worst || r > worst.r)) worst = { id: n.id, r, label: def.label };
     }
   }
   if (worst) {
-    return { text: `${worst.icon} is getting overloaded. Add another ${worst.label} and wire it in.`, tone: 'warn', target: { node: worst.id } };
+    return { text: `A ${worst.label} is getting overloaded. Add another and wire it in.`, tone: 'warn', target: { node: worst.id } };
   }
-  if (sim.spiking) return { text: '📰 Spike! Hold on…', tone: 'warn' };
-  return { text: '👍 Looking good. Watch the faces: 🙂 → 😅 → 🥵', tone: 'good' };
+  if (sim.spiking) return { text: 'Traffic spike! Hold on...', tone: 'warn' };
+  return { text: 'Looking good. Keep an eye on the faces on each box.', tone: 'good' };
 }

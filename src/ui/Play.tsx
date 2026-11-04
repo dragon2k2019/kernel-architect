@@ -3,38 +3,56 @@ import { NODE_DEFS, type Kind, type Level } from '../game/content';
 import { BOARD_H, BOARD_W, NODE_H, NODE_W, Sim } from '../game/sim';
 import { coach } from '../game/coach';
 import { drawPackets } from '../game/draw';
+import { sfx } from '../game/sfx';
+import { fx } from '../game/particles';
 import { Board, type Hand, type Wiring } from './Board';
 import { TopBar } from './TopBar';
 import { Tray } from './Tray';
+import { BottomPanel, type PanelTab } from './BottomPanel';
 import { Intro, Result } from './Overlays';
+import { Dots, Tab } from './Chrome';
+import { Icon, type IconName } from './icons';
+import { SoundToggle } from './SoundToggle';
 import { cn } from '../utils/cn';
 
 const STEP = 1 / 30;
+const MILESTONES = [0.25, 0.5, 0.75];
 
 interface Props {
   level: Level;
   best: number;
+  bank: number;
   hasNext: boolean;
   onFinish: (sim: Sim) => void;
   onNext: () => void;
   onRetry: () => void;
   onMenu: () => void;
+  onHelp: () => void;
 }
 
-export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }: Props) {
+const fileName = (l: Level) =>
+  `${String(l.n).padStart(2, '0')}_${l.name.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '')}.arch`;
+
+export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, onMenu, onHelp }: Props) {
   const simRef = useRef<Sim>(null as unknown as Sim);
   if (!simRef.current) simRef.current = new Sim(level);
   const sim = simRef.current;
+  // what the player had before this run, so the result screen can celebrate records and count up the wallet
+  const startBest = useRef(best);
+  const startBank = useRef(bank);
 
   const [tick, setTick] = useState(0);
   const bump = useCallback(() => setTick((t) => t + 1), []);
   const [phase, setPhase] = useState<'intro' | 'play' | 'result'>('intro');
   const [speed, setSpeed] = useState(1);
-  const [showLog, setShowLog] = useState(() => typeof window !== 'undefined' && window.innerWidth >= 1100);
+  const [panelOpen, setPanelOpen] = useState(() => typeof window !== 'undefined' && window.innerHeight >= 560);
+  const [panelTab, setPanelTab] = useState<PanelTab>('terminal');
   const [selected, setSelected] = useState<number | null>(null);
   const [hand, setHandState] = useState<Hand | null>(null);
   const [wiring, setWiringState] = useState<Wiring | null>(null);
-  const [toast, setToast] = useState<{ id: number; text: string } | null>(null);
+  const [toast, setToast] = useState<{ id: number; text: string; tone: 'bad' | 'good' } | null>(null);
+  const [walletKey, setWalletKey] = useState(0);
+  const [quake, setQuake] = useState(false);
 
   const boardRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -43,25 +61,102 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
   const phaseRef = useRef(phase);
   const speedRef = useRef(speed);
   const finished = useRef(false);
+  const milestone = useRef(0);
+  const endlessStep = useRef(0);
+  const okTick = useRef(0);
+  const lastCoin = useRef(0);
   phaseRef.current = phase;
   speedRef.current = speed;
 
   const setHand = (h: Hand | null) => { handRef.current = h; setHandState(h); };
   const setWiring = (w: Wiring | null) => { wiringRef.current = w; setWiringState(w); };
 
-  const say = useCallback((text: string) => {
+  const say = useCallback((text: string, tone: 'bad' | 'good' = 'bad') => {
     const id = Date.now() + Math.random();
-    setToast({ id, text });
+    setToast({ id, text, tone });
+    if (tone === 'bad') sfx.error();
     setTimeout(() => setToast((t) => (t && t.id === id ? null : t)), 2400);
+  }, []);
+
+  // board coordinates -> screen pixels (for particles)
+  const toScreen = useCallback((bx: number, by: number) => {
+    const el = boardRef.current;
+    if (!el) return { x: window.innerWidth / 2, y: window.innerHeight / 2 };
+    const r = el.getBoundingClientRect();
+    const s = r.width / BOARD_W;
+    return { x: r.left + bx * s, y: r.top + by * s };
+  }, []);
+  const walletPos = useCallback(() => {
+    const r = document.getElementById('wallet')?.getBoundingClientRect();
+    return r ? { x: r.left + r.width / 2, y: r.top + r.height / 2 } : { x: window.innerWidth - 80, y: 60 };
   }, []);
 
   // ---------- main loop ----------
   useEffect(() => {
+    fx.onCoinArrive = () => { sfx.coin(Math.random() * 3); setWalletKey((k) => k + 1); };
     let raf = 0;
     let last = performance.now();
     let acc = 0;
     let frame = 0;
     let timer: ReturnType<typeof setTimeout> | undefined;
+
+    const drain = () => {
+      const evs = sim.evq;
+      if (!evs.length) return;
+      sim.evq = [];
+      const now = performance.now();
+      for (const e of evs) {
+        switch (e.type) {
+          case 'ok':
+            okTick.current++;
+            if (okTick.current % 3 === 0 && now - lastCoin.current > 160) {
+              lastCoin.current = now;
+              const from = toScreen(e.x, e.y); const to = walletPos();
+              fx.coinFly(from.x, from.y, to.x, to.y, e.data ? 2 : 1);
+            }
+            break;
+          case 'fail': sfx.thud(); break;
+          case 'crash': {
+            sfx.crash();
+            const s = toScreen(e.x, e.y);
+            fx.embers(s.x, s.y, 36); fx.ring(s.x, s.y, '#ff6b8b', 220, 0.7);
+            setQuake(true); setTimeout(() => setQuake(false), 650);
+            break;
+          }
+          case 'spike': case 'warn': sfx.alarm(); break;
+          case 'back': { sfx.reboot(); const s = toScreen(e.x, e.y); fx.sparks(s.x, s.y, '#7ee787', 20, 260); break; }
+        }
+      }
+    };
+
+    const checkMilestones = () => {
+      const goal = sim.level.goal;
+      let hit = false;
+      if (goal) {
+        const frac = sim.ok / goal;
+        while (milestone.current < MILESTONES.length && frac >= MILESTONES[milestone.current] && frac < 1) {
+          hit = true;
+          setToast({ id: Date.now(), text: `Checkpoint! ${Math.round(MILESTONES[milestone.current] * 100)}% of visitors served`, tone: 'good' });
+          milestone.current++;
+        }
+      } else {
+        const step = Math.floor(sim.ok / 100);
+        if (step > endlessStep.current) {
+          endlessStep.current = step; hit = true;
+          setToast({ id: Date.now(), text: `${step * 100} visitors served. Still online!`, tone: 'good' });
+        }
+      }
+      if (hit) {
+        sfx.milestone();
+        const el = boardRef.current?.getBoundingClientRect();
+        const cx = el ? el.left + el.width / 2 : window.innerWidth / 2;
+        const cy = el ? el.bottom : window.innerHeight;
+        fx.confetti(cx - 120, cy, -80, 36, 0.7, 30);
+        fx.confetti(cx + 120, cy, -100, 36, 0.7, 30);
+        setTimeout(() => setToast((t) => (t && t.tone === 'good' ? null : t)), 2200);
+      }
+    };
+
     const loop = (now: number) => {
       const dt = Math.min(0.1, (now - last) / 1000);
       last = now;
@@ -70,6 +165,8 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
         let n = 0;
         while (acc >= STEP && n < 16 && sim.status === 'running') { sim.step(STEP); acc -= STEP; n++; }
         if (n >= 16) acc = 0;
+        drain();
+        checkMilestones();
       }
       if (canvasRef.current) drawPackets(canvasRef.current, sim);
       if (++frame % 3 === 0) setTick((t) => t + 1);
@@ -77,12 +174,12 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
         finished.current = true;
         setTick((t) => t + 1);
         onFinish(sim);
-        timer = setTimeout(() => setPhase('result'), 1000);
+        timer = setTimeout(() => setPhase('result'), 900);
       }
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); if (timer) clearTimeout(timer); };
+    return () => { cancelAnimationFrame(raf); if (timer) clearTimeout(timer); fx.onCoinArrive = null; fx.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -111,7 +208,11 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
 
   const placeAt = (kind: Kind, x: number, y: number): boolean => {
     const r = sim.place(kind, x - NODE_W / 2, y - NODE_H / 2);
-    if (!r.ok) { say(r.reason ?? "Can't place that"); return false; }
+    if (!r.ok || !r.node) { say(r.reason ?? "Can't place that"); return false; }
+    const s = toScreen(r.node.x + NODE_W / 2, r.node.y + NODE_H / 2);
+    sfx.place();
+    fx.sparks(s.x, s.y, NODE_DEFS[kind].color, 20, 260);
+    fx.ring(s.x, s.y, NODE_DEFS[kind].color, 110, 0.5);
     bump();
     return true;
   };
@@ -119,11 +220,20 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
   const connect = (from: number, to: number) => {
     const r = sim.wire(from, to);
     if (!r.ok) say(r.reason ?? "Can't connect");
+    else {
+      const a = sim.node(from); const b = sim.node(to);
+      if (a && b) {
+        const s = toScreen((a.x + NODE_W + b.x) / 2, (a.y + b.y + NODE_H) / 2);
+        fx.sparks(s.x, s.y, NODE_DEFS[a.kind].color, 14, 200, 0);
+      }
+      sfx.connect();
+    }
     bump();
   };
 
   const armTool = (kind: Kind) => {
-    if (sim.cash < NODE_DEFS[kind].cost) { say(`Not enough $ for a ${NODE_DEFS[kind].label}`); return; }
+    if (sim.cash < NODE_DEFS[kind].cost) { say(`Not enough cash for a ${NODE_DEFS[kind].label}`); return; }
+    sfx.click();
     setSelected(null);
     setWiring(null);
     setHand(handRef.current?.kind === kind && !handRef.current.dragging ? null : { kind, x: null, y: null, dragging: false });
@@ -131,7 +241,8 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
 
   const toggleGo = () => {
     if (phaseRef.current !== 'play') return;
-    if (sim.status === 'running') sim.pause(); else sim.go();
+    if (sim.status === 'running') { sim.pause(); sfx.pause(); }
+    else { sim.go(); sfx.go(); }
     setHand(null);
     setWiring(null);
     bump();
@@ -144,7 +255,7 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
     const sx = e.clientX; const sy = e.clientY;
     let moved = false;
     const move = (ev: PointerEvent) => {
-      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) moved = true;
+      if (!moved && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) { moved = true; sfx.pickup(); }
       if (moved) {
         const b = toBoard(ev.clientX, ev.clientY);
         setHand({ kind, x: b.inside ? b.x : null, y: b.inside ? b.y : null, dragging: true });
@@ -267,21 +378,36 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
     window.addEventListener('pointercancel', up);
   };
 
-  const onCut = (id: number) => { sim.cut(id); bump(); };
-  const onSell = (id: number) => { sim.remove(id); setSelected(null); bump(); };
+  const onCut = (id: number) => { sim.cut(id); sfx.cut(); bump(); };
+  const onSell = (id: number) => {
+    const n = sim.node(id);
+    const value = sim.sellValue(id);
+    if (n) {
+      const from = toScreen(n.x + NODE_W / 2, n.y + NODE_H / 2);
+      const to = walletPos();
+      fx.coinFly(from.x, from.y, to.x, to.y, Math.min(6, 2 + Math.floor(value / 20)));
+      fx.sparks(from.x, from.y, '#ffd34d', 14, 220);
+    }
+    sim.remove(id);
+    sfx.sell();
+    setSelected(null);
+    bump();
+  };
 
   // ---------- keyboard ----------
   const keyRef = useRef<(e: KeyboardEvent) => void>(() => {});
   keyRef.current = (e: KeyboardEvent) => {
+    if (document.querySelector('[data-modal]')) return;
     if (phaseRef.current === 'intro') {
-      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setPhase('play'); }
+      if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); sfx.click(); setPhase('play'); }
       return;
     }
     if (phaseRef.current !== 'play') return;
     if (e.key === ' ') { e.preventDefault(); toggleGo(); return; }
     if (e.key === 'Escape') { setHand(null); setWiring(null); setSelected(null); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected !== null) { onSell(selected); return; }
-    if (e.key === 'l' || e.key === 'L') { setShowLog((s) => !s); return; }
+    if (e.key === 'l' || e.key === 'L') { setPanelOpen((s) => !s); return; }
+    if (e.key === '?' || e.key === 'h' || e.key === 'H') { onHelp(); return; }
     const tool = level.tools.find((k) => NODE_DEFS[k].key === e.key);
     if (tool) armTool(tool);
   };
@@ -295,53 +421,116 @@ export function Play({ level, best, hasNext, onFinish, onNext, onRetry, onMenu }
   void tick;
   const c = coach(sim);
   const msg = hand && !hand.dragging
-    ? { text: `Placing ${NODE_DEFS[hand.kind].icon} ${NODE_DEFS[hand.kind].label}. Click the board. (Esc to stop)`, tone: 'info' as const }
+    ? { text: `Placing ${NODE_DEFS[hand.kind].label}. Click the board. (Esc to stop)`, tone: 'info' as const }
     : wiring?.armed
       ? { text: 'Now click the box to connect to. (Esc to cancel)', tone: 'info' as const }
       : c;
-  const tone = { info: 'text-fg', warn: 'text-warn', bad: 'text-bad', good: 'text-ok' }[msg.tone];
   const showTarget = !hand && !wiring ? c.target : undefined;
+
+  const trouble = sim.status === 'running' && (sim.spiking || sim.uptime < 0.95);
+  const barColor = sim.status === 'won' ? '#2d7a49' : sim.status === 'lost' ? '#8f2a45' : trouble ? '#8f2a45' : sim.status === 'running' ? '#a24a1a' : '#3b4a8f';
+  const state = sim.status === 'planning' ? 'planning' : sim.status === 'running' ? (sim.spiking ? 'traffic spike' : 'running') : sim.status;
+
+  const act = (name: IconName, title: string, onClick: () => void, active = false) => (
+    <button
+      title={title}
+      onClick={onClick}
+      className={cn('relative flex h-11 w-11 items-center justify-center text-dim transition-colors hover:text-fg', active && 'text-fg')}
+    >
+      {active && <span className="absolute inset-y-2 left-0 w-[2px] rounded bg-gold" />}
+      <Icon name={name} size={20} />
+    </button>
+  );
 
   return (
     <div className="relative flex h-full flex-col bg-ink">
-      <TopBar
-        sim={sim} speed={speed} showLog={showLog} goHint={!!showTarget?.go}
-        onSpeed={setSpeed} onToggleLog={() => setShowLog((s) => !s)} onBack={onMenu} onGo={toggleGo}
-      />
-      <Board
-        sim={sim} tick={tick} boardRef={boardRef} canvasRef={canvasRef}
-        selected={selected} hand={hand} wiring={wiring} target={showTarget} showLog={showLog}
-        onBoardDown={onBoardDown} onBoardMove={onBoardMove}
-        onNodeDown={onNodeDown} onPortDown={onPortDown} onCut={onCut} onSell={onSell}
-      />
+      {/* window title bar */}
+      <div className="flex h-9 shrink-0 items-center gap-3 border-b border-line bg-ink2 px-3 [@media(max-height:520px)]:hidden">
+        <Dots onClose={onMenu} />
+        <div className="flex-1 truncate text-center text-[11px] text-dim">{fileName(level)} - kernel-architect</div>
+        <button onClick={onHelp} title="How to play (?)" className="flex h-7 items-center gap-1.5 rounded-md px-2 text-[11px] text-dim hover:bg-line hover:text-fg">
+          <Icon name="help" size={15} /><span className="hidden sm:inline">Help</span>
+        </button>
+        <SoundToggle />
+      </div>
 
-      <div className="relative z-10 border-t border-line bg-panel/95 px-3 pb-3 pt-2.5">
-        <div className="mx-auto mb-1 flex max-w-4xl items-center gap-2 px-1 text-[15px] font-bold">
-          <span className="text-dim">›</span>
-          <span key={msg.text} className={cn('animate-slidein', tone)}>{msg.text}</span>
-          <span className="animate-blink text-dim">▌</span>
+      <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+        {/* activity bar */}
+        <div className="hidden w-11 shrink-0 flex-col items-center border-r border-line bg-[#0a0b13] md:flex">
+          {act('back', 'Back to menu', onMenu)}
+          {act('folder', 'Components', () => {}, true)}
+          {act('terminal', 'Toggle terminal (L)', () => setPanelOpen((o) => !o), panelOpen)}
+          {act('help', 'How to play (?)', onHelp)}
         </div>
+
         <Tray
           tools={level.tools} cash={sim.cash} armed={hand ? hand.kind : null}
           hint={showTarget?.tool} onDown={onToolDown}
         />
+
+        <main className="flex min-h-0 min-w-0 flex-1 flex-col">
+          <div className="flex shrink-0 overflow-hidden border-b border-line bg-ink2">
+            <Tab icon={level.icon} label={fileName(level)} active dirty={sim.status === 'planning'} color="#ffd34d" />
+            <Tab icon="book" label="README.md" onClick={onHelp} color="#ffc857" />
+            <div className="ml-auto hidden items-center gap-3 px-3 text-[10.5px] text-dim lg:flex">
+              <span className="flex items-center gap-1"><span className="kbd">Space</span> run</span>
+              <span className="flex items-center gap-1"><span className="kbd">Del</span> sell</span>
+              <span className="flex items-center gap-1"><span className="kbd">Esc</span> cancel</span>
+            </div>
+          </div>
+
+          <TopBar sim={sim} speed={speed} goHint={!!showTarget?.go} walletKey={walletKey} onSpeed={setSpeed} onGo={toggleGo} />
+
+          <Board
+            sim={sim} tick={tick} boardRef={boardRef} canvasRef={canvasRef}
+            selected={selected} hand={hand} wiring={wiring} target={showTarget} quake={quake}
+            onBoardDown={onBoardDown} onBoardMove={onBoardMove}
+            onNodeDown={onNodeDown} onPortDown={onPortDown} onCut={onCut} onSell={onSell}
+          />
+
+          <BottomPanel
+            sim={sim} coach={msg} tab={panelTab} open={panelOpen}
+            onTab={setPanelTab} onToggle={() => setPanelOpen((o) => !o)}
+          />
+        </main>
+      </div>
+
+      {/* status bar */}
+      <div className="flex h-6 shrink-0 items-center gap-4 px-3 text-[11px] text-white/90 transition-colors duration-500 [@media(max-height:520px)]:hidden" style={{ background: barColor }}>
+        <span className="flex items-center gap-1.5"><Icon name="branch" size={12} /> main</span>
+        <span className="flex items-center gap-1.5 font-bold uppercase"><span className={cn('h-1.5 w-1.5 rounded-full bg-white', sim.status === 'running' && 'animate-pulse')} />{state}</span>
+        <span className="hidden sm:inline">traffic {sim.traffic.toFixed(1)}/s</span>
+        <span className="hidden sm:inline">uptime {(sim.uptime * 100).toFixed(1)}%</span>
+        <span className="hidden md:inline">p95 {Math.round(sim.p95)}ms</span>
+        <span className="hidden md:inline">{sim.rps.toFixed(1)} served/s</span>
+        <span className="ml-auto hidden sm:inline">{sim.nodes.length - 1} {sim.nodes.length === 2 ? 'box' : 'boxes'}, {sim.wires.length} {sim.wires.length === 1 ? 'wire' : 'wires'}</span>
       </div>
 
       {toast && (
-        <div key={toast.id} className="pointer-events-none absolute bottom-40 left-1/2 z-30 -translate-x-1/2 animate-pop rounded-xl border border-bad/60 bg-panel px-4 py-2 text-sm font-bold text-bad shadow-xl">
+        <div
+          key={toast.id}
+          className={cn(
+            'pointer-events-none absolute bottom-32 left-1/2 z-30 flex -translate-x-1/2 animate-pop items-center gap-2 rounded-xl border bg-panel px-4 py-2 text-sm font-bold shadow-xl',
+            toast.tone === 'bad' ? 'border-bad/60 text-bad' : 'border-ok/60 text-ok',
+          )}
+        >
+          <Icon name={toast.tone === 'bad' ? 'warn' : 'sparkle'} size={16} />
           {toast.text}
         </div>
       )}
 
       <div className="absolute inset-0 z-50 hidden flex-col items-center justify-center gap-3 bg-ink text-center portrait:max-md:flex">
-        <div className="text-5xl">📱↻</div>
+        <Icon name="rotate" size={56} className="text-gold" />
         <div className="text-lg font-bold">Rotate your phone</div>
         <div className="text-xs text-dim">The board needs a wide screen.</div>
       </div>
 
-      {phase === 'intro' && <Intro level={level} onStart={() => setPhase('play')} onBack={onMenu} />}
+      {phase === 'intro' && <Intro level={level} onStart={() => { sfx.click(); setPhase('play'); }} onBack={onMenu} onHelp={onHelp} />}
       {phase === 'result' && (
-        <Result sim={sim} best={best} hasNext={hasNext} onNext={onNext} onRetry={onRetry} onMenu={onMenu} />
+        <Result
+          sim={sim} prevBest={startBest.current} prevBank={startBank.current} hasNext={hasNext}
+          onNext={onNext} onRetry={onRetry} onMenu={onMenu}
+        />
       )}
     </div>
   );

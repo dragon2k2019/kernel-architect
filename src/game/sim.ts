@@ -43,13 +43,20 @@ export interface LogLine {
   id: number; t: number; code: number; method: string; path: string; node: string; ms: number; note: string;
 }
 export interface Fx { id: number; x: number; y: number; text: string; color: string; age: number }
+export type SimEvent =
+  | { type: 'ok'; x: number; y: number; revenue: number; data: boolean }
+  | { type: 'fail'; x: number; y: number; code: number }
+  | { type: 'crash'; x: number; y: number }
+  | { type: 'spike' }
+  | { type: 'warn' }
+  | { type: 'back'; x: number; y: number };
 export interface Banner { text: string; kind: 'warn' | 'bad' | 'info'; until: number }
 
 export const FAIL_HELP: Record<number, string> = {
-  503: '503 = line is full. Add servers, or put a ⚡ Cache in front.',
+  503: '503 = line is full. Add servers, or put a Cache in front.',
   504: '504 = too slow. Visitors waited too long. Add capacity.',
   502: '502 = dead end. A wire leads nowhere, or a box is down.',
-  500: "500 = a server needs a 🗄️ Database wired after it.",
+  500: '500 = a server needs a Database wired after it.',
   403: '403 = databases only accept traffic from servers.',
   404: '404 = wrong box. Visitors need a path to a server.',
 };
@@ -77,6 +84,8 @@ export class Sim {
   fx: Fx[] = [];
   banner: Banner | null = null;
   stars = 0;
+  earned = 0;
+  evq: SimEvent[] = [];
   failTimes: { t: number; code: number }[] = [];
   doneTimes: number[] = [];
   private nextId = 1;
@@ -194,7 +203,7 @@ export class Sim {
     if (a.kind === 'db') return { ok: false, reason: 'Databases are the end of the line' };
     if (b.kind === 'internet') return { ok: false, reason: 'Nothing flows back into the internet' };
     if (this.wires.some((w) => w.from === from && w.to === to)) return { ok: false, reason: 'Already connected' };
-    if (this.reaches(to, from)) return { ok: false, reason: '🔁 That makes an infinite loop' };
+    if (this.reaches(to, from)) return { ok: false, reason: 'That would make an infinite loop' };
     const replaced = a.kind === 'internet' ? this.outs(from)[0]?.id : undefined;
     return { ok: true, replaced };
   }
@@ -235,8 +244,9 @@ export class Sim {
     evs.forEach((e, i) => {
       if (!this.warned.has(i) && this.t >= e.at - 4 && this.t < e.at) {
         this.warned.add(i);
+        this.emit({ type: 'warn' });
         this.banner = {
-          text: e.kind === 'spike' ? '⚠️ Traffic spike incoming…' : '⚠️ Something is about to break…',
+          text: e.kind === 'spike' ? 'Traffic spike incoming...' : 'Something is about to break...',
           kind: 'warn', until: e.at,
         };
       }
@@ -248,16 +258,18 @@ export class Sim {
     if (e.kind === 'spike') {
       this.spikeUntil = this.t + (e.dur ?? 12);
       this.spikeMult = e.mult ?? 2;
-      this.banner = { text: `📰 You're #1 on Hacker News!  traffic ×${this.spikeMult}`, kind: 'bad', until: this.spikeUntil };
-      this.log(0, 'SYS', '', 'hn', `front page hit — traffic ×${this.spikeMult}`);
+      this.emit({ type: 'spike' });
+      this.banner = { text: `You're #1 on Hacker News!  traffic x${this.spikeMult}`, kind: 'bad', until: this.spikeUntil };
+      this.log(0, 'SYS', '', 'hn', `front page hit - traffic x${this.spikeMult}`);
     } else {
       const pool = this.nodes.filter((n) => n.down <= 0 && (e.target === 'any' || !e.target
         ? n.kind === 'server' || n.kind === 'db' : n.kind === e.target));
       if (!pool.length) return;
       const v = pool[Math.floor(this.rng() * pool.length)];
       v.down = TUNING.crashSeconds;
+      this.emit({ type: 'crash', x: v.x + NODE_W / 2, y: v.y + NODE_H / 2 });
       const msg = v.kind === 'db' ? `${v.name} ran out of disk` : `${v.name} was OOM-killed`;
-      this.banner = { text: `💀 ${msg}`, kind: 'bad', until: this.t + 4 };
+      this.banner = { text: `${msg}`, kind: 'bad', until: this.t + 4 };
       this.log(0, 'SYS', '', v.name, msg);
       for (const r of [...v.queue, ...(v.cur ? [v.cur] : [])]) this.failReq(r, 502, v, 'host crashed');
       v.queue = []; v.cur = null;
@@ -345,7 +357,7 @@ export class Sim {
     const def = NODE_DEFS[n.kind];
     if (n.down > 0) {
       n.down -= dt;
-      if (n.down <= 0) { n.down = 0; this.log(0, 'SYS', '', n.name, `${n.name} is back online`); }
+      if (n.down <= 0) { n.down = 0; this.emit({ type: 'back', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 }); this.log(0, 'SYS', '', n.name, `${n.name} is back online`); }
       n.load += (0 - n.load) * Math.min(1, dt * 4);
       return;
     }
@@ -388,6 +400,8 @@ export class Sim {
   private succeed(r: Req, n: SNode, note: string) {
     this.ok++;
     this.cash += REQ[r.type].revenue;
+    this.earned += REQ[r.type].revenue;
+    this.emit({ type: 'ok', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2, revenue: REQ[r.type].revenue, data: r.type === 'data' });
     this.happy = Math.min(100, this.happy + TUNING.okGain);
     const dur = this.t - r.born;
     this.lat.push(dur); if (this.lat.length > 120) this.lat.shift();
@@ -404,11 +418,16 @@ export class Sim {
     this.failTimes.push({ t: this.t, code });
     this.log(code, r.method, r.path, n.name, note, this.t - r.born, r.id);
     this.addFx(n, String(code), '#f7768e');
+    this.emit({ type: 'fail', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2, code });
   }
 
   private addFx(n: SNode, text: string, color: string) {
     if (this.fx.length > 40) this.fx.shift();
     this.fx.push({ id: this.nextId++, x: n.x + NODE_W / 2 + (this.rng() - 0.5) * 30, y: n.y, text, color, age: 0 });
+  }
+
+  private emit(e: SimEvent) {
+    if (this.evq.length < 200) this.evq.push(e);
   }
 
   private log(code: number, method: string, path: string, node: string, note: string, dur = 0, id?: number) {
