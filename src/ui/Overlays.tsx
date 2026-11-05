@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { NODE_DEFS, type Level } from '../game/content';
 import { FAIL_HELP, type Sim } from '../game/sim';
 import { payout, STAR_BONUS } from '../game/store';
+import { TUNING } from '../game/content';
 import { sfx } from '../game/sfx';
 import { fx } from '../game/particles';
 import { cn } from '../utils/cn';
@@ -76,6 +77,10 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
   const [showPay, setShowPay] = useState(false);
   const [rev, setRev] = useState(0);
   const [bon, setBon] = useState(0);
+  const [cmb, setCmb] = useState(0);
+  const [holding, setHolding] = useState(false); // the held breath before the reveal
+  const [charging, setCharging] = useState(-1); // which star is charging up
+  const [showStats, setShowStats] = useState(false);
   const [showTotal, setShowTotal] = useState(false);
   const [bank, setBank] = useState(prevBank);
   const [done, setDone] = useState(false);
@@ -97,7 +102,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
     const id = window.setInterval(() => {
       const k = Math.min(1, (performance.now() - t0) / ms);
       set(Math.round(to * (1 - Math.pow(1 - k, 3))));
-      if (i++ % 2 === 0) sfx.tick(Math.floor(k * 14));
+      if (i++ % 2 === 0) sfx.tick(Math.floor(k * 22));
       if (k >= 1) { clearInterval(id); then?.(); }
     }, 45);
     timers.current.push(id);
@@ -110,86 +115,121 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
 
   const payoutSeq = useCallback(() => {
     setShowPay(true);
-    tween(pay.revenue, 1100, setRev, () => {
+    tween(pay.revenue, 2000, setRev, () => {
       const finish = () => {
-        setShowTotal(true);
-        if (pay.total > 0) {
-          sfx.kaching(celebrate ? 1 : 0.5);
-          const from = center(totalRef.current);
-          const to = center(bankRef.current);
-          fx.sparks(from.x, from.y, '#ffd34d', 24, 340);
-          fx.coinFly(from.x, from.y, to.x, to.y, celebrate ? 14 : 6);
-        }
-        later(500, () => tween(pay.total, 900, (v) => setBank(prevBank + v), () => later(350, () => setDone(true))));
-        if (pay.total === 0) setDone(true);
+        // a held beat, then the total slams in
+        later(650, () => {
+          setShowTotal(true);
+          if (pay.total > 0) {
+            sfx.kaching(celebrate ? 1 : 0.5);
+            const from = center(totalRef.current);
+            const to = center(bankRef.current);
+            fx.sparks(from.x, from.y, '#ffd34d', 30, 380);
+            fx.ring(from.x, from.y, '#ffd34d', 200, 0.8);
+            // coins leave in three waves, not all at once
+            fx.coinFly(from.x, from.y, to.x, to.y, celebrate ? 8 : 4);
+            later(350, () => fx.coinFly(from.x, from.y, to.x, to.y, celebrate ? 8 : 3));
+            later(700, () => { fx.coinFly(from.x, from.y, to.x, to.y, celebrate ? 10 : 3); sfx.coinShower(1.2, 10); });
+          }
+          later(1000, () => tween(pay.total, 1800, (v) => setBank(prevBank + v), () => {
+            if (pay.total > 0) sfx.milestone();
+            later(600, () => setDone(true));
+          }));
+          if (pay.total === 0) setDone(true);
+        });
       };
-      if (pay.bonus > 0) later(300, () => { sfx.milestone(); tween(pay.bonus, 800, setBon, () => later(350, finish)); });
-      else later(250, finish);
+      const comboStage = () => {
+        if (pay.combo > 0) later(500, () => { sfx.vip(); tween(pay.combo, 1500, setCmb, () => later(500, finish)); });
+        else finish();
+      };
+      if (pay.bonus > 0) later(600, () => { sfx.milestone(); tween(pay.bonus, 1500, setBon, () => later(450, comboStage)); });
+      else later(450, comboStage);
     });
-  }, [pay.revenue, pay.bonus, pay.total, celebrate, prevBank, tween, later]);
+  }, [pay.revenue, pay.bonus, pay.combo, pay.total, celebrate, prevBank, tween, later]);
 
   const reveal = useCallback(() => {
+    setHolding(false);
     setBoom(true);
     const w = fx.w; const h = fx.h;
     if (celebrate) {
       sfx.boom();
-      later(100, () => sfx.fanfare());
+      later(120, () => sfx.fanfare());
       const tc = center(titleRef.current);
       fx.swirl(w / 2, Math.max(120, tc.y), 140, 6);
       sfx.swirl();
+      // the party builds in waves instead of one burst
       fx.confetti(0, h, -62, 80, 1);
       fx.confetti(w, h, -118, 80, 1);
       sfx.pop(); later(160, () => sfx.pop());
-      fx.coinFountain(w * 0.12, 3.2, 26, -78);
-      fx.coinFountain(w * 0.88, 3.2, 26, -102);
-      sfx.coinShower(3.4, 12);
-      later(600, () => fx.confettiRain(3, 30));
-      later(1200, () => fx.cashRain(2.5, 7));
+      later(500, () => { fx.coinFountain(w * 0.12, 3.2, 26, -78); fx.coinFountain(w * 0.88, 3.2, 26, -102); sfx.coinShower(4, 12); sfx.pop(); });
+      later(1100, () => { fx.confettiRain(3, 30); sfx.pop(); });
+      later(1800, () => { fx.cashRain(2.5, 7); fx.confetti(w * 0.25, h, -80, 50, 0.9); fx.confetti(w * 0.75, h, -100, 50, 0.9); sfx.pop(); later(140, () => sfx.pop()); });
       if (sim.stars === 3 || record) {
-        later(1000, () => { fx.cashFountain(w * 0.5, 2.5, 8); sfx.kaching(0.8); fx.confetti(w / 2, h, -90, 70, 0.9, 30); sfx.pop(); });
+        later(2600, () => { fx.cashFountain(w * 0.5, 2.5, 8); sfx.kaching(0.8); fx.confetti(w / 2, h, -90, 70, 0.9, 30); sfx.pop(); });
       }
     } else {
       sfx.lose(); sfx.glitch();
       const c = center(titleRef.current);
       fx.embers(c.x, c.y, 40);
       fx.ring(c.x, c.y, '#ff6b8b', 420, 0.9);
+      later(500, () => { fx.embers(c.x, c.y, 20); sfx.heartbeat(0.7); });
     }
-    const s0 = celebrate && !endless ? 1100 : 500;
+    // stars come one at a time. Each one charges up first, then pops. A perfect third star gets an extra held breath.
+    const s0 = celebrate && !endless ? 2300 : 1000;
+    let t = s0;
     if (!endless) {
       for (let i = 0; i < 3; i++) {
-        later(s0 + i * 800, () => {
+        const isEarned = i < sim.stars && won;
+        const perfect = i === 2 && isEarned;
+        const lead = perfect ? 1500 : 650;
+        later(t, () => { setCharging(i); if (isEarned) { sfx.charge(lead / 1000, perfect ? 1.4 : 0.9); if (perfect) sfx.drumroll(lead / 1000, 0.9); } else sfx.heartbeat(0.5); });
+        t += lead;
+        later(t, () => {
+          setCharging(-1);
           setStarsShown(i + 1);
-          if (i < sim.stars && won) {
+          if (isEarned) {
             sfx.star(i);
             const c = center(starRefs.current[i]);
             fx.sparks(c.x, c.y, '#ffd34d', 26 + i * 8, 360);
             fx.ring(c.x, c.y, '#ffd34d', 180 + i * 40, 0.7);
-            if (i === 2) { fx.confetti(c.x, c.y, -90, 60, 0.8, 55); fx.swirl(c.x, c.y, 80, 4); sfx.swirl(); }
+            later(220, () => fx.ring(c.x, c.y, '#ffffff', 120 + i * 30, 0.6));
+            if (i === 2) { fx.confetti(c.x, c.y, -90, 60, 0.8, 55); fx.swirl(c.x, c.y, 80, 4); sfx.swirl(); later(300, () => { fx.confetti(0, fx.h, -62, 50, 1); fx.confetti(fx.w, fx.h, -118, 50, 1); sfx.boom(); }); }
           } else sfx.starEmpty();
         });
+        t += perfect ? 1500 : 1000;
       }
-    }
-    const t1 = s0 + (endless ? 200 : 3 * 800 + 100);
-    later(t1, payoutSeq);
+    } else t += 600;
+    later(t - 400, () => setShowStats(true));
+    later(t + 400, payoutSeq);
   }, [celebrate, endless, record, sim.stars, won, later, payoutSeq]);
 
   const skip = useCallback(() => {
     if (done) return;
     clearAll();
     setRunning(plan.length); setDoneN(plan.length); setBoom(true); setStarsShown(3);
+    setHolding(false); setCharging(-1); setShowStats(true); setCmb(pay.combo);
     setShowPay(true); setRev(pay.revenue); setBon(pay.bonus); setShowTotal(true);
     setBank(prevBank + pay.total); setDone(true);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [done, pay.revenue, pay.bonus, pay.total, prevBank, clearAll]);
+  }, [done, pay.revenue, pay.bonus, pay.combo, pay.total, prevBank, clearAll]);
 
   useEffect(() => {
-    const stepMs = celebrate ? 560 : 440;
-    if (celebrate) sfx.suspense();
+    const stepMs = celebrate ? 1050 : 700;
+    const hold = celebrate ? 2000 : 1100;
+    if (celebrate) sfx.suspense((400 + plan.length * stepMs + hold) / 1000);
     plan.forEach((s, i) => {
-      later(300 + i * stepMs, () => { setRunning(i); sfx.step(i); });
-      later(300 + i * stepMs + stepMs - 80, () => { setDoneN(i + 1); if (s.fail) sfx.error(); else sfx.stepDone(i); });
+      later(400 + i * stepMs, () => { setRunning(i); sfx.step(i); });
+      later(400 + i * stepMs + stepMs * 0.5, () => sfx.heartbeat(0.5 + i * 0.15));
+      later(400 + i * stepMs + stepMs - 120, () => { setDoneN(i + 1); if (s.fail) sfx.error(); else sfx.stepDone(i); });
     });
-    later(300 + plan.length * stepMs + 250, reveal);
+    // the held breath: everything went green... now wait for it
+    const holdAt = 400 + plan.length * stepMs + 150;
+    later(holdAt, () => {
+      setHolding(true);
+      if (celebrate) { sfx.drumroll(hold / 1000 - 0.1, 1); sfx.charge(hold / 1000, 1.2); }
+      else { sfx.heartbeat(1); later(500, () => sfx.heartbeat(1)); }
+    });
+    later(holdAt + hold, reveal);
     return clearAll;
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -239,7 +279,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
               </h2>
             ) : (
               <h2 ref={titleRef} className="text-xl font-black tracking-tight text-fg">
-                {endless ? 'Analysing outage' : 'Deploying'}<span className="animate-blink">...</span>
+                {holding ? (celebrate ? 'Moment of truth' : 'Checking the damage') : endless ? 'Analysing outage' : 'Deploying'}<span className="animate-blink">...</span>
               </h2>
             )}
           </div>
@@ -247,7 +287,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
           {boom && celebrate && !endless && <p className="mt-1 animate-fadeup text-[12px] text-dim">Your system survived. The internet thanks you.</p>}
 
           {/* pipeline */}
-          <div className="mt-4 rounded-xl border border-line bg-ink px-3.5 py-3 text-left text-[12px] leading-6">
+          <div className={cn('mt-4 rounded-xl border bg-ink px-3.5 py-3 text-left text-[12px] leading-6 transition-all duration-500', holding ? 'border-gold/70 shadow-[0_0_30px_rgba(255,211,77,0.25)]' : 'border-line')}>
             <div className="text-dim">$ ./deploy --prod</div>
             {plan.map((s, i) => {
               const finished = doneN > i;
@@ -286,11 +326,12 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
                   <span
                     key={i}
                     ref={(el) => { starRefs.current[i] = el; }}
-                    className={cn('flex h-[58px] w-[58px] items-center justify-center', shown && 'animate-star')}
+                    className={cn('flex h-[58px] w-[58px] items-center justify-center', shown && 'animate-star', charging === i && 'animate-pulse')}
+                    style={charging === i ? { filter: 'drop-shadow(0 0 16px rgba(255,211,77,0.85))', transform: 'scale(1.12)', transition: 'transform 0.6s' } : undefined}
                   >
                     <Icon
                       name="star" size={shown ? 54 : 44} strokeWidth={1.5}
-                      className={cn(shown && earned ? 'text-gold' : 'text-line')}
+                      className={cn(shown && earned ? 'text-gold' : charging === i ? 'text-gold/60' : 'text-line')}
                       style={shown && earned ? { filter: 'drop-shadow(0 0 14px rgba(255,211,77,0.9))', fill: '#ffd34d' } : { fill: shown ? '#1d2030' : 'none', opacity: shown ? 1 : 0.5 }}
                     />
                   </span>
@@ -300,11 +341,18 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
           )}
 
           {/* stats */}
-          {boom && (
+          {boom && showStats && (
             <div className="mt-4 grid animate-fadeup grid-cols-3 gap-2 text-center">
               <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">served</div><b className="text-lg text-ok">{sim.ok}</b></div>
               <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">uptime</div><b className={cn('text-lg', sim.uptime >= 0.99 ? 'text-ok' : sim.uptime >= 0.95 ? 'text-warn' : 'text-bad')}>{(sim.uptime * 100).toFixed(1)}%</b></div>
               <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">p95</div><b className="text-lg text-fg">{Math.round(sim.p95)}<span className="text-xs text-dim">ms</span></b></div>
+            </div>
+          )}
+          {boom && showStats && (sim.bestCombo >= TUNING.comboStep || sim.blocked > 0 || sim.vipOk + sim.vipLost > 0) && (
+            <div className="mt-2 grid animate-fadeup grid-cols-3 gap-2 text-center">
+              <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">best combo</div><b className="text-lg text-gold">{sim.bestCombo}</b></div>
+              <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">VIPs</div><b className="text-lg text-fg">{sim.vipOk}<span className="text-xs text-dim">/{sim.vipOk + sim.vipLost}</span></b></div>
+              <div className="rounded-xl bg-ink px-2 py-2"><div className="text-[10px] uppercase tracking-wider text-dim">bots blocked</div><b className="text-lg text-cyan">{sim.blocked}</b></div>
             </div>
           )}
           {boom && endless && <p className="mt-2 text-[12px] text-dim">best: <b className="text-gold">{Math.max(prevBest, sim.ok)}</b> served{record && ' (new!)'}</p>}
@@ -314,7 +362,7 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
               <Icon name="bulb" size={15} className="mt-0.5" /><span><b>Most errors:</b> {FAIL_HELP[top]}</span>
             </p>
           )}
-          {won && sim.stars < 3 && starsShown >= 3 && <p className="mt-2 text-[11.5px] text-dim">Want 3 stars? Keep uptime at 99% or better.</p>}
+          {won && sim.stars < 3 && starsShown >= 3 && showStats && <p className="mt-2 text-[11.5px] text-dim">Want 3 stars? Keep uptime at 99% or better.</p>}
 
           {/* payout */}
           {showPay && (
@@ -325,6 +373,12 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
                 <div className="flex animate-fadeup items-center justify-between py-0.5">
                   <span className="flex items-center gap-1.5 text-dim">star bonus <span className="text-[10px]">({sim.stars} x ${STAR_BONUS})</span></span>
                   <b className="text-gold">+${bon}</b>
+                </div>
+              )}
+              {pay.combo > 0 && (
+                <div className="flex animate-fadeup items-center justify-between py-0.5">
+                  <span className="flex items-center gap-1.5 text-dim">combo bonus <span className="text-[10px]">(best x{sim.bestCombo})</span></span>
+                  <b className="text-gold">+${cmb}</b>
                 </div>
               )}
               {showTotal && (

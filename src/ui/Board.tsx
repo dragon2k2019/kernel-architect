@@ -1,5 +1,5 @@
 import { useEffect, useLayoutEffect, useRef, useState, type PointerEvent as RPE, type RefObject } from 'react';
-import { NODE_DEFS, REQ, type Kind } from '../game/content';
+import { NODE_DEFS, REQ, TUNING, type Kind } from '../game/content';
 import { BOARD_H, BOARD_W, NODE_H, NODE_W, Sim, type SNode } from '../game/sim';
 import { inPort, outPort, wirePath } from '../game/geom';
 import type { CoachTarget } from '../game/coach';
@@ -26,6 +26,8 @@ interface Props {
   onPortDown: (id: number, e: RPE) => void;
   onCut: (id: number) => void;
   onSell: (id: number) => void;
+  onUpgrade: (id: number) => void;
+  comboPulse: number;
 }
 
 export function moodOf(n: SNode): Mood {
@@ -158,12 +160,31 @@ export function Board(p: Props) {
               style={{ left: sel.x + NODE_W / 2, top: Math.max(4, sel.y - 40) }}
               onPointerDown={(e) => e.stopPropagation()}
             >
-              <button
-                onClick={() => p.onSell(sel.id)}
-                className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-bad/60 bg-panel px-3 py-1.5 text-xs font-bold text-bad shadow-lg hover:bg-bad hover:text-ink"
-              >
-                <Icon name="trash" size={14} /> Sell +${sim.sellValue(sel.id)}
-              </button>
+              <div className="flex gap-1.5">
+                {(sel.kind === 'server' || sel.kind === 'db') && (() => {
+                  const cost = sim.upgradeCost(sel.id);
+                  const afford = cost !== null && sim.cash >= cost;
+                  return (
+                    <button
+                      onClick={() => p.onUpgrade(sel.id)}
+                      disabled={cost === null}
+                      title="Overclock (U): faster and runs cooler"
+                      className={cn(
+                        'flex items-center gap-1.5 whitespace-nowrap rounded-lg border bg-panel px-3 py-1.5 text-xs font-bold shadow-lg',
+                        cost === null ? 'border-line text-dim' : afford ? 'border-gold/70 text-gold hover:bg-gold hover:text-ink' : 'border-line text-dim',
+                      )}
+                    >
+                      <Icon name="upgrade" size={14} /> {cost === null ? 'MAX' : `Overclock $${cost}`}
+                    </button>
+                  );
+                })()}
+                <button
+                  onClick={() => p.onSell(sel.id)}
+                  className="flex items-center gap-1.5 whitespace-nowrap rounded-lg border border-bad/60 bg-panel px-3 py-1.5 text-xs font-bold text-bad shadow-lg hover:bg-bad hover:text-ink"
+                >
+                  <Icon name="trash" size={14} /> Sell +${sim.sellValue(sel.id)}
+                </button>
+              </div>
             </div>
           )}
 
@@ -182,7 +203,12 @@ export function Board(p: Props) {
           <div className="pointer-events-none absolute bottom-3 left-3 flex gap-3 rounded-lg border border-line/60 bg-ink/70 px-2.5 py-1.5 text-[11px] text-dim backdrop-blur">
             <span className="flex items-center gap-1.5"><ReqDot type="page" color={REQ.page.color} size={9} /> page</span>
             <span className="flex items-center gap-1.5"><ReqDot type="data" color={REQ.data.color} size={9} /> data</span>
+            {(sim.level.vipShare ?? 0) > 0 && <span className="flex items-center gap-1.5"><ReqDot type="vip" color={REQ.vip.color} size={9} /> VIP</span>}
+            {(sim.level.botShare ?? 0) > 0 || sim.level.endless ? <span className="flex items-center gap-1.5"><ReqDot type="bot" color={REQ.bot.color} size={9} /> bot</span> : null}
           </div>
+
+          {/* combo meter */}
+          <ComboHud sim={sim} pulse={p.comboPulse} />
 
           {/* event banner */}
           {sim.banner && (
@@ -249,7 +275,8 @@ function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
         <span className="h-[6px] w-[6px] rounded-full" style={{ background: dot, boxShadow: `0 0 6px ${dot}` }} />
         <span className="h-[6px] w-[6px] rounded-full bg-white/15" />
         <span className="h-[6px] w-[6px] rounded-full bg-white/15" />
-        <span className="ml-1 min-w-0 flex-1 truncate text-[9px] leading-none text-dim">{down ? `reboot ${Math.ceil(n.down)}s` : n.name}</span>
+        <span className="ml-1 min-w-0 flex-1 truncate text-[9px] leading-none text-dim">{down ? `reboot ${Math.ceil(n.down)}s` : n.hot ? 'THROTTLED' : n.name}</span>
+        {n.lvl > 1 && <span className="flex gap-px text-gold">{Array.from({ length: n.lvl - 1 }, (_, i) => <Icon key={i} name="bolt" size={9} strokeWidth={2.4} />)}</span>}
       </div>
 
       <div className="flex min-h-0 flex-1 flex-col px-2 pb-1.5 pt-1">
@@ -279,6 +306,21 @@ function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
         </div>
       </div>
 
+      {/* heat gauge */}
+      {def.rate > 0 && !down && n.heat > 0.04 && (
+        <div className="pointer-events-none absolute -bottom-[9px] left-1 right-1 h-[5px] overflow-hidden rounded-full bg-black/60">
+          <div
+            className={cn('h-full rounded-full', n.hot && 'animate-pulse')}
+            style={{ width: `${Math.min(100, n.heat * 100)}%`, background: n.hot ? '#ff4d6d' : n.heat > 0.7 ? '#ff9e64' : '#ffd34d' }}
+          />
+        </div>
+      )}
+      {/* click me! */}
+      {sim.status === 'running' && (down || (def.rate > 0 && n.heat > 0.5)) && (
+        <div className="pointer-events-none absolute -top-[26px] left-1/2 z-20 -translate-x-1/2 animate-bob whitespace-nowrap rounded-md bg-gold px-1.5 py-0.5 text-[10px] font-black text-ink shadow-lg">
+          {down ? 'CLICK TO REBOOT!' : 'CLICK TO COOL!'}
+        </div>
+      )}
       {n.kind !== 'internet' && (
         <span
           className={cn('absolute -left-[7px] top-1/2 h-3.5 w-3.5 -translate-y-1/2 rounded-full border-2 bg-ink', wiringValid ? 'animate-ring border-ok' : 'border-dim')}
@@ -298,6 +340,34 @@ function NodeWindow({ sim, n, selected, wiring, target, onDown, onPortDown }: {
         </div>
       )}
       <NodeCard2 node={n} rect={hv.rect} ins={sim.ins(n.id).length} outs={sim.outs(n.id).length} />
+    </div>
+  );
+}
+
+/** Combo meter: grows with every success, charges toward the next tier, and shakes when you are on fire. */
+function ComboHud({ sim, pulse }: { sim: Sim; pulse: number }) {
+  if (sim.status !== 'running' && sim.status !== 'paused') return null;
+  if (sim.combo < 3) return null;
+  const tier = sim.comboTier;
+  const maxed = tier >= TUNING.comboMaxTier;
+  const into = maxed ? 1 : (sim.combo % TUNING.comboStep) / TUNING.comboStep;
+  const hue = ['#7dcfff', '#9ece6a', '#ffd34d', '#ff9e64', '#ff5ccf', '#ff4d6d'][tier];
+  const word = ['', 'HOT', 'ON FIRE', 'BLAZING', 'UNSTOPPABLE', 'OVERDRIVE'][tier];
+  return (
+    <div className="pointer-events-none absolute right-3 top-3 z-20 text-right">
+      <div key={pulse} className={cn('inline-block origin-right rounded-xl border bg-ink/80 px-3 py-1.5 backdrop-blur', pulse > 0 && 'animate-pop')} style={{ borderColor: hue + '99', boxShadow: `0 0 ${10 + tier * 8}px ${hue}66` }}>
+        <div className="flex items-baseline justify-end gap-2 leading-none">
+          {word && <span className="text-[10px] font-black tracking-[0.2em]" style={{ color: hue }}>{word}</span>}
+          <span className={cn('font-black tabular-nums', tier >= 3 && 'animate-shake')} style={{ color: hue, fontSize: 20 + tier * 3 }}>{sim.combo}</span>
+          <span className="text-[10px] font-bold text-dim">combo</span>
+        </div>
+        <div className="mt-1 flex items-center gap-2">
+          <div className="h-1.5 w-28 overflow-hidden rounded-full bg-line">
+            <div className="h-full rounded-full transition-[width] duration-150" style={{ width: `${into * 100}%`, background: hue }} />
+          </div>
+          <b className="text-[11px]" style={{ color: hue }}>x{sim.comboMult.toFixed(2)}</b>
+        </div>
+      </div>
     </div>
   );
 }

@@ -1,5 +1,6 @@
 // Tiny localStorage save: stars per level, best endless score, lifetime wallet, which level tutorials were finished.
 import type { Sim } from './sim';
+import { TUNING } from './content';
 
 export interface Progress { stars: Record<string, number>; best: number; bank: number; tuts: Record<string, boolean> }
 
@@ -24,8 +25,9 @@ export function saveProgress(p: Progress) {
 export const STAR_BONUS = 100;
 
 /** Cash paid out when a run ends: revenue earned while serving plus a bonus per star. */
-export function payout(sim: Sim): { revenue: number; bonus: number; total: number } {
+export function payout(sim: Sim): { revenue: number; bonus: number; combo: number; total: number } {
   const revenue = Math.round(sim.earned);
   const bonus = sim.status === 'won' && !sim.level.endless ? sim.stars * STAR_BONUS : 0;
-  return { revenue, bonus, total: revenue + bonus };
+  const combo = sim.bestCombo >= TUNING.comboStep ? Math.min(sim.bestCombo, TUNING.comboPayCap) * TUNING.comboPay : 0;
+  return { revenue, bonus, combo, total: revenue + bonus + combo };
 }

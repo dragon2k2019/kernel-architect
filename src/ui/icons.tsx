@@ -10,11 +10,23 @@ export type IconName =
   | 'trophy' | 'star' | 'lock' | 'copy' | 'back' | 'terminal' | 'check' | 'x' | 'warn'
   | 'sparkle' | 'rotate' | 'help' | 'trash' | 'plug' | 'cursor' | 'file' | 'cube'
   | 'speaker' | 'speakerOff' | 'chevR' | 'chevL' | 'sprout' | 'trend' | 'news' | 'infinity'
-  | 'rocket' | 'folder' | 'branch' | 'bell' | 'list' | 'bulb' | 'refresh' | 'skip' | 'loop' | 'wallet' | 'book';
+  | 'rocket' | 'folder' | 'branch' | 'bell' | 'list' | 'bulb' | 'refresh' | 'skip' | 'loop' | 'wallet' | 'book' | 'shield' | 'upgrade';
 
 const SOFT = 0.18;
 
 const P: Record<IconName, ReactNode> = {
+  shield: (
+    <>
+      <path d="M12 3l7.500 3v5.500c0 4.600-3.100 8.200-7.500 9.500C7.600 19.700 4.500 16.100 4.500 11.500V6z" fill="currentColor" fillOpacity={SOFT} />
+      <path d="M8.500 12l2.500 2.500 4.500-5" />
+    </>
+  ),
+  upgrade: (
+    <>
+      <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity={SOFT} />
+      <path d="M12 17V8M8 12l4-4 4 4" />
+    </>
+  ),
   globe: (
     <>
       <circle cx="12" cy="12" r="9" fill="currentColor" fillOpacity={SOFT} />
@@ -273,7 +285,7 @@ export function Icon({ name, size = 18, className, style, strokeWidth = 1.8 }: {
 }
 
 export const KIND_ICON: Record<Kind, IconName> = {
-  internet: 'globe', server: 'server', lb: 'balancer', db: 'database', cache: 'bolt',
+  internet: 'globe', server: 'server', lb: 'balancer', db: 'database', cache: 'bolt', fw: 'shield',
 };
 
 export function NodeIcon({ kind, size = 24, color, glow = true, className }: {
@@ -339,7 +351,9 @@ export function Face({ mood, size = 20, className }: { mood: Mood; size?: number
 }
 
 /** Legend glyphs for the two kinds of visitor: pages are circles, data are rounded squares. */
-export function ReqDot({ type, color, size = 10 }: { type: 'page' | 'data'; color: string; size?: number }) {
+export function ReqDot({ type, color, size = 10 }: { type: 'page' | 'data' | 'bot' | 'vip'; color: string; size?: number }) {
+  if (type === 'bot') return <span className="inline-block rotate-45 rounded-[2px]" style={{ width: size * 0.85, height: size * 0.85, background: color, boxShadow: `0 0 8px ${color}` }} />;
+  if (type === 'vip') return <Icon name="star" size={size + 4} style={{ color, fill: color, filter: `drop-shadow(0 0 5px ${color})` }} strokeWidth={1.4} />;
   return type === 'page'
     ? <span className="inline-block rounded-full" style={{ width: size, height: size, background: color, boxShadow: `0 0 8px ${color}` }} />
     : <span className="inline-block rounded-[3px]" style={{ width: size, height: size, background: color, boxShadow: `0 0 8px ${color}` }} />;

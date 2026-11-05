@@ -28,6 +28,25 @@ export function drawPackets(canvas: HTMLCanvasElement, sim: Sim) {
       ctx.arc(p.x, p.y, 6.5, 0, Math.PI * 2);
       ctx.fill();
       ctx.stroke();
+    } else if (r.type === 'bot') {
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y - 8); ctx.lineTo(p.x + 7, p.y); ctx.lineTo(p.x, p.y + 8); ctx.lineTo(p.x - 7, p.y); ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
+    } else if (r.type === 'vip') {
+      // a golden, pulsing star
+      const pulse = 1 + 0.18 * Math.sin(sim.t * 14 + r.id);
+      ctx.shadowBlur = 20;
+      ctx.beginPath();
+      for (let i = 0; i < 10; i++) {
+        const rad = (i % 2 ? 4.5 : 11) * pulse;
+        const a = -Math.PI / 2 + (i * Math.PI) / 5 + sim.t * 2;
+        const px = p.x + Math.cos(a) * rad; const py = p.y + Math.sin(a) * rad;
+        if (i === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+      }
+      ctx.closePath();
+      ctx.fill();
+      ctx.stroke();
     } else {
       const s = 12;
       ctx.beginPath();

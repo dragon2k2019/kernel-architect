@@ -37,6 +37,9 @@ export interface SNode {
   handled: number;
   load: number;
   paid: number;
+  heat: number; // 0..1, servers and databases overheat when worked hard for too long
+  hot: boolean; // throttled until it cools down
+  lvl: number; // 1..3 upgrade level
 }
 export interface SWire { id: number; from: number; to: number }
 export interface LogLine {
@@ -44,7 +47,17 @@ export interface LogLine {
 }
 export interface Fx { id: number; x: number; y: number; text: string; color: string; age: number }
 export type SimEvent =
-  | { type: 'ok'; x: number; y: number; revenue: number; data: boolean }
+  | { type: 'ok'; x: number; y: number; revenue: number; data: boolean; mult: number }
+  | { type: 'vip'; x: number; y: number; revenue: number }
+  | { type: 'tier'; tier: number; combo: number }
+  | { type: 'comboBreak'; combo: number }
+  | { type: 'block'; x: number; y: number }
+  | { type: 'leak'; x: number; y: number }
+  | { type: 'overheat'; x: number; y: number }
+  | { type: 'cooled'; x: number; y: number }
+  | { type: 'poke'; x: number; y: number; left: number; kind: 'reboot' | 'cool' }
+  | { type: 'upgrade'; x: number; y: number; lvl: number }
+  | { type: 'ddos' }
   | { type: 'fail'; x: number; y: number; code: number }
   | { type: 'crash'; x: number; y: number }
   | { type: 'spike' }
@@ -53,7 +66,7 @@ export type SimEvent =
 export interface Banner { text: string; kind: 'warn' | 'bad' | 'info'; until: number }
 
 export const FAIL_HELP: Record<number, string> = {
-  503: '503 = line is full. Add servers, or put a Cache in front.',
+  503: '503 = line is full. Add servers, or put a Cache in front. Bots? Use a Firewall.',
   504: '504 = too slow. Visitors waited too long. Add capacity.',
   502: '502 = dead end. A wire leads nowhere, or a box is down.',
   500: '500 = a server needs a Database wired after it.',
@@ -62,6 +75,8 @@ export const FAIL_HELP: Record<number, string> = {
 };
 
 const PAGE_PATHS = ['/', '/pricing', '/blog/why-rust', '/docs', '/about', '/changelog', '/login'];
+const BOT_PATHS = ['/wp-login.php', '/.env', '/admin', '/phpmyadmin', '/xmlrpc.php', '/.git/config', '/scrape?page=9'];
+const VIP_PATHS = ['/checkout', '/enterprise/contact', '/api/billing', '/upgrade?plan=max'];
 const DATA_PATHS = ['/api/users', '/api/orders', '/api/search?q=k8s', '/api/cart', '/api/feed', '/api/me'];
 
 export interface Result { ok: boolean; reason?: string; replaced?: number }
@@ -85,6 +100,12 @@ export class Sim {
   banner: Banner | null = null;
   stars = 0;
   earned = 0;
+  combo = 0;
+  bestCombo = 0;
+  blocked = 0;
+  leaked = 0;
+  vipOk = 0;
+  vipLost = 0;
   evq: SimEvent[] = [];
   failTimes: { t: number; code: number }[] = [];
   doneTimes: number[] = [];
@@ -92,6 +113,7 @@ export class Sim {
   private acc = 0;
   private spikeUntil = 0;
   private spikeMult = 1;
+  private ddosUntil = 0;
   private evIdx = 0;
   private warned = new Set<number>();
   private counters: Record<string, number> = {};
@@ -123,6 +145,15 @@ export class Sim {
     return this.doneTimes.filter((x) => x > cut).length / 3;
   }
   get spiking(): boolean { return this.t < this.spikeUntil; }
+  get ddos(): boolean { return this.t < this.ddosUntil; }
+  get comboTier(): number { return Math.min(TUNING.comboMaxTier, Math.floor(this.combo / TUNING.comboStep)); }
+  get comboMult(): number { return 1 + TUNING.comboBonus * this.comboTier; }
+  get botShare(): number {
+    let s = this.level.botShare ?? 0;
+    if (this.level.endless) s = 0.1 + Math.min(0.25, this.t * 0.0012);
+    if (this.t < this.ddosUntil) s = Math.max(s, 0.65);
+    return s;
+  }
   wireLen(w: SWire): number {
     const a = this.node(w.from); const b = this.node(w.to);
     if (!a || !b) return 100;
@@ -136,6 +167,7 @@ export class Sim {
     const n: SNode = {
       id: this.nextId++, kind, name: kind === 'internet' ? 'internet' : `${def.short}-${c}`,
       x, y, queue: [], cur: null, busy: 0, busyTotal: 1, down: 0, rr: 0, handled: 0, load: 0, paid: def.cost,
+      heat: 0, hot: false, lvl: 1,
     };
     this.nodes.push(n);
     return n;
@@ -190,6 +222,51 @@ export class Sim {
     for (const r of [...n.queue, ...(n.cur ? [n.cur] : [])]) this.failReq(r, 502, n, 'host removed');
     return true;
   }
+  upgradeCost(id: number): number | null {
+    const n = this.node(id);
+    if (!n || (n.kind !== 'server' && n.kind !== 'db') || n.lvl >= TUNING.maxLevel) return null;
+    return Math.round(NODE_DEFS[n.kind].cost * (n.lvl === 1 ? 0.75 : 1.1));
+  }
+  upgrade(id: number): Result {
+    const n = this.node(id);
+    const c = this.upgradeCost(id);
+    if (!n) return { ok: false, reason: 'Missing box' };
+    if (c === null) return { ok: false, reason: 'Already maxed out' };
+    if (this.status === 'won' || this.status === 'lost') return { ok: false, reason: 'Game over' };
+    if (this.cash < c) return { ok: false, reason: `Need $${c} to overclock` };
+    this.cash -= c; n.paid += c; n.lvl++;
+    this.emit({ type: 'upgrade', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2, lvl: n.lvl });
+    return { ok: true };
+  }
+  /** Rate multiplier from upgrades and throttling. */
+  speedOf(n: SNode): number {
+    return (1 + TUNING.upgradeRate * (n.lvl - 1)) * (n.hot ? TUNING.throttle : 1);
+  }
+  /** Click a crashed box to reboot it faster, or an overheating box to cool it down. */
+  poke(id: number): boolean {
+    const n = this.node(id);
+    if (!n || this.status !== 'running') return false;
+    const x = n.x + NODE_W / 2; const y = n.y + NODE_H / 2;
+    if (n.down > 0) {
+      n.down = Math.max(0, n.down - TUNING.pokeSeconds);
+      this.emit({ type: 'poke', x, y, left: n.down, kind: 'reboot' });
+      if (n.down <= 0) this.revive(n);
+      return true;
+    }
+    if (n.heat > 0.5 && NODE_DEFS[n.kind].rate > 0) {
+      n.heat = Math.max(0, n.heat - TUNING.pokeCool);
+      this.emit({ type: 'poke', x, y, left: n.heat, kind: 'cool' });
+      if (n.hot && n.heat <= TUNING.heatResume) { n.hot = false; this.emit({ type: 'cooled', x, y }); }
+      return true;
+    }
+    return false;
+  }
+  private revive(n: SNode) {
+    n.down = 0; n.heat = 0; n.hot = false;
+    this.emit({ type: 'back', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 });
+    this.log(0, 'SYS', '', n.name, `${n.name} is back online`);
+  }
+
   private reaches(from: number, target: number, seen = new Set<number>()): boolean {
     if (from === target) return true;
     if (seen.has(from)) return false;
@@ -246,7 +323,7 @@ export class Sim {
         this.warned.add(i);
         this.emit({ type: 'warn' });
         this.banner = {
-          text: e.kind === 'spike' ? 'Traffic spike incoming...' : 'Something is about to break...',
+          text: e.kind === 'spike' ? 'Traffic spike incoming...' : e.kind === 'ddos' ? 'Bot swarm incoming...' : 'Something is about to break...',
           kind: 'warn', until: e.at,
         };
       }
@@ -261,15 +338,22 @@ export class Sim {
       this.emit({ type: 'spike' });
       this.banner = { text: `You're #1 on Hacker News!  traffic x${this.spikeMult}`, kind: 'bad', until: this.spikeUntil };
       this.log(0, 'SYS', '', 'hn', `front page hit - traffic x${this.spikeMult}`);
+    } else if (e.kind === 'ddos') {
+      this.ddosUntil = this.t + (e.dur ?? 12);
+      this.spikeUntil = Math.max(this.spikeUntil, this.ddosUntil);
+      this.spikeMult = e.mult ?? 2;
+      this.emit({ type: 'ddos' });
+      this.banner = { text: `DDoS! Bots are flooding in  traffic x${this.spikeMult}`, kind: 'bad', until: this.ddosUntil };
+      this.log(0, 'SYS', '', 'waf', `bot swarm detected - traffic x${this.spikeMult}`);
     } else {
       const pool = this.nodes.filter((n) => n.down <= 0 && (e.target === 'any' || !e.target
         ? n.kind === 'server' || n.kind === 'db' : n.kind === e.target));
       if (!pool.length) return;
       const v = pool[Math.floor(this.rng() * pool.length)];
-      v.down = TUNING.crashSeconds;
+      v.down = TUNING.crashSeconds; v.heat = 0; v.hot = false;
       this.emit({ type: 'crash', x: v.x + NODE_W / 2, y: v.y + NODE_H / 2 });
       const msg = v.kind === 'db' ? `${v.name} ran out of disk` : `${v.name} was OOM-killed`;
-      this.banner = { text: `${msg}`, kind: 'bad', until: this.t + 4 };
+      this.banner = { text: `${msg}. Click it to reboot faster!`, kind: 'bad', until: this.t + 5 };
       this.log(0, 'SYS', '', v.name, msg);
       for (const r of [...v.queue, ...(v.cur ? [v.cur] : [])]) this.failReq(r, 502, v, 'host crashed');
       v.queue = []; v.cur = null;
@@ -281,12 +365,19 @@ export class Sim {
     while (this.acc >= 1) {
       this.acc -= 1;
       const id = this.nextId++;
-      const type: ReqType = this.rng() < this.level.dataShare ? 'data' : 'page';
+      const roll = this.rng();
+      const bs = this.botShare;
+      const vs = this.level.vipShare ?? 0;
+      const type: ReqType = roll < bs ? 'bot'
+        : roll < bs + vs ? 'vip'
+          : this.rng() < this.level.dataShare ? 'data' : 'page';
       const inet = this.node(this.internetId)!;
       const req: Req = {
         id, type, born: this.t, wire: 0, p: 0, viaServer: false,
-        method: type === 'page' ? 'GET' : id % 2 ? 'POST' : 'GET',
-        path: (type === 'page' ? PAGE_PATHS : DATA_PATHS)[id % (type === 'page' ? PAGE_PATHS.length : DATA_PATHS.length)],
+        method: type === 'page' || type === 'bot' ? 'GET' : id % 2 ? 'POST' : 'GET',
+        path: (type === 'page' ? PAGE_PATHS : type === 'data' ? DATA_PATHS : type === 'bot' ? BOT_PATHS : VIP_PATHS)[
+          id % (type === 'page' ? PAGE_PATHS.length : type === 'data' ? DATA_PATHS.length : type === 'bot' ? BOT_PATHS.length : VIP_PATHS.length)
+        ],
       };
       const w = this.pick(inet);
       if (!w) this.failReq(req, 404, inet, 'no route');
@@ -333,7 +424,13 @@ export class Sim {
         const w = this.pick(n);
         return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
       }
+      case 'fw': {
+        if (r.type === 'bot' && this.rng() < TUNING.botBlock) return this.block(r, n, true);
+        const w = this.pick(n);
+        return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
+      }
       case 'cache': {
+        if (r.type === 'bot' && this.rng() < TUNING.cacheHit) return this.block(r, n, false);
         if (this.rng() < TUNING.cacheHit) return this.succeed(r, n, 'cache hit');
         const w = this.pick(n);
         return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
@@ -357,7 +454,7 @@ export class Sim {
     const def = NODE_DEFS[n.kind];
     if (n.down > 0) {
       n.down -= dt;
-      if (n.down <= 0) { n.down = 0; this.emit({ type: 'back', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 }); this.log(0, 'SYS', '', n.name, `${n.name} is back online`); }
+      if (n.down <= 0) this.revive(n);
       n.load += (0 - n.load) * Math.min(1, dt * 4);
       return;
     }
@@ -365,7 +462,7 @@ export class Sim {
       // time out anything that has been waiting too long
       if (n.queue.length) {
         const live: Req[] = [];
-        for (const r of n.queue) (this.t - r.born > TUNING.timeout ? this.failReq(r, 504, n, 'timeout') : live.push(r));
+        for (const r of n.queue) (this.t - r.born > (r.type === 'vip' ? TUNING.vipTimeout : TUNING.timeout) ? this.failReq(r, 504, n, 'timeout') : live.push(r));
         n.queue = live;
       }
       let left = dt;
@@ -374,7 +471,7 @@ export class Sim {
         if (!n.cur) {
           if (!n.queue.length) break;
           n.cur = n.queue.shift()!;
-          n.busyTotal = (1 / def.rate) * (0.85 + 0.3 * this.rng());
+          n.busyTotal = (1 / (def.rate * this.speedOf(n))) * (0.85 + 0.3 * this.rng());
           n.busy = n.busyTotal;
         }
         const use = Math.min(left, n.busy);
@@ -382,41 +479,92 @@ export class Sim {
         if (n.busy <= 1e-9) { const r = n.cur; n.cur = null; this.finish(n, r); }
       }
       n.load += ((n.cur ? 1 : 0) - n.load) * Math.min(1, dt * 4);
+      this.heatStep(n, def.queue, dt);
     } else {
       n.load += (0 - n.load) * Math.min(1, dt * 4);
     }
   }
 
+  private heatStep(n: SNode, queueMax: number, dt: number) {
+    const x = n.x + NODE_W / 2; const y = n.y + NODE_H / 2;
+    const fill = queueMax ? n.queue.length / queueMax : 0;
+    if (n.hot) {
+      n.heat = Math.max(0, n.heat - TUNING.heatVentHot * dt);
+      if (n.heat <= TUNING.heatResume) { n.hot = false; this.emit({ type: 'cooled', x, y }); }
+    } else if (n.cur) {
+      n.heat = Math.min(1, n.heat + (dt * TUNING.heatRate * (0.55 + fill)) / (1 + 0.55 * (n.lvl - 1)));
+      if (n.heat >= 1) { n.hot = true; this.emit({ type: 'overheat', x, y }); this.addFx(n, 'OVERHEAT', '#ff9e64'); }
+    } else n.heat = Math.max(0, n.heat - TUNING.heatVent * dt);
+  }
+
+  private block(r: Req, n: SNode, pay: boolean) {
+    this.blocked++;
+    if (pay) { this.cash += 1; this.earned += 1; this.addFx(n, 'BLOCKED +$1', '#2ac3de'); }
+    this.log(403, r.method, r.path, n.name, pay ? 'bot blocked' : 'bot absorbed', this.t - r.born, r.id);
+    this.emit({ type: 'block', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2 });
+  }
+
   private finish(n: SNode, r: Req) {
     if (n.kind === 'db') return this.succeed(r, n, 'ok');
     // server
-    if (r.type === 'page') return this.succeed(r, n, 'ok');
+    if (r.type !== 'data') return this.succeed(r, n, 'ok');
     r.viaServer = true;
     const w = this.pick(n, 'db');
     if (!w) return this.failReq(r, 500, n, 'no database');
     this.send(w, r);
   }
 
+  private breakCombo() {
+    if (this.combo >= TUNING.comboStep) this.emit({ type: 'comboBreak', combo: this.combo });
+    this.combo = 0;
+  }
+
   private succeed(r: Req, n: SNode, note: string) {
+    const x = n.x + NODE_W / 2; const y = n.y + NODE_H / 2;
+    if (r.type === 'bot') {
+      // a bot got all the way to a real server: wasted capacity and a broken streak
+      this.leaked++;
+      this.happy = Math.max(0, this.happy - TUNING.botLeak);
+      this.breakCombo();
+      this.log(200, r.method, r.path, n.name, 'bot served (wasted)', this.t - r.born, r.id);
+      this.addFx(n, 'BOT', '#ff4d6d');
+      this.emit({ type: 'leak', x, y });
+      return;
+    }
     this.ok++;
-    this.cash += REQ[r.type].revenue;
-    this.earned += REQ[r.type].revenue;
-    this.emit({ type: 'ok', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2, revenue: REQ[r.type].revenue, data: r.type === 'data' });
+    const before = this.comboTier;
+    this.combo += r.type === 'vip' ? TUNING.vipComboBoost : 1;
+    this.bestCombo = Math.max(this.bestCombo, this.combo);
+    const mult = this.comboMult;
+    const base = REQ[r.type].revenue;
+    const rev = Math.max(1, Math.round(base * mult));
+    this.cash += rev;
+    this.earned += rev;
+    if (this.comboTier > before) this.emit({ type: 'tier', tier: this.comboTier, combo: this.combo });
+    if (r.type === 'vip') {
+      this.vipOk++;
+      this.emit({ type: 'vip', x, y, revenue: rev });
+      this.addFx(n, `VIP +$${rev}`, '#fff27a');
+    }
+    this.emit({ type: 'ok', x, y, revenue: rev, data: r.type === 'data', mult });
     this.happy = Math.min(100, this.happy + TUNING.okGain);
     const dur = this.t - r.born;
     this.lat.push(dur); if (this.lat.length > 120) this.lat.shift();
     this.doneTimes.push(this.t);
     this.byCode[200] = (this.byCode[200] ?? 0) + 1;
     this.log(200, r.method, r.path, n.name, note, dur, r.id);
-    if (this.ok % 4 === 0) this.addFx(n, `+$${REQ[r.type].revenue * 4}`, '#9ece6a');
+    if (r.type !== 'vip' && this.ok % 4 === 0) this.addFx(n, `+$${rev * 4}`, mult > 1 ? '#ffd34d' : '#9ece6a');
   }
 
   private failReq(r: Req, code: number, n: SNode, note: string) {
-    this.fail++;
-    this.happy = Math.max(0, this.happy - TUNING.failCost);
     this.byCode[code] = (this.byCode[code] ?? 0) + 1;
-    this.failTimes.push({ t: this.t, code });
     this.log(code, r.method, r.path, n.name, note, this.t - r.born, r.id);
+    if (r.type === 'bot') return; // bots that bounce off a full queue are not your problem
+    this.fail++;
+    if (r.type === 'vip') { this.vipLost++; this.addFx(n, 'VIP LOST', '#ff6b8b'); }
+    this.happy = Math.max(0, this.happy - TUNING.failCost * (r.type === 'vip' ? TUNING.vipFailMult : 1));
+    this.failTimes.push({ t: this.t, code });
+    this.breakCombo();
     this.addFx(n, String(code), '#f7768e');
     this.emit({ type: 'fail', x: n.x + NODE_W / 2, y: n.y + NODE_H / 2, code });
   }

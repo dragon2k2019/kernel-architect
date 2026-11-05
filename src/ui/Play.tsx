@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPE } from 'react';
-import { NODE_DEFS, type Kind, type Level } from '../game/content';
+import { NODE_DEFS, TUNING, type Kind, type Level } from '../game/content';
 import { BOARD_H, BOARD_W, NODE_H, NODE_W, Sim } from '../game/sim';
 import { coach } from '../game/coach';
 import { drawPackets } from '../game/draw';
@@ -84,7 +84,10 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
   const milestone = useRef(0);
   const endlessStep = useRef(0);
   const okTick = useRef(0);
+  const musicOn = useRef(false);
   const lastCoin = useRef(0);
+  const lastBlock = useRef(0);
+  const [comboPulse, setComboPulse] = useState(0);
   phaseRef.current = phase;
   speedRef.current = speed;
 
@@ -129,6 +132,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
         switch (e.type) {
           case 'ok':
             okTick.current++;
+            sfx.comboTick(sim.combo);
             if (okTick.current % 3 === 0 && now - lastCoin.current > 160) {
               lastCoin.current = now;
               const from = toScreen(e.x, e.y); const to = walletPos();
@@ -136,6 +140,62 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
             }
             break;
           case 'fail': sfx.thud(); break;
+          case 'vip': {
+            sfx.vip();
+            const s = toScreen(e.x, e.y); const w = walletPos();
+            fx.sparks(s.x, s.y, '#fff27a', 30, 380); fx.ring(s.x, s.y, '#fff27a', 170, 0.7);
+            fx.coinFly(s.x, s.y, w.x, w.y, 8);
+            break;
+          }
+          case 'tier': {
+            // delayed gratification: the sound charges for ~0.45s, the burst lands right on the chord
+            sfx.comboTier(e.tier);
+            const mult = 1 + TUNING.comboBonus * e.tier;
+            setToast({ id: Date.now(), text: `COMBO x${e.combo}!  revenue x${mult.toFixed(2)}`, tone: 'good' });
+            setTimeout(() => setToast((t) => (t && t.tone === 'good' ? null : t)), 2400);
+            window.setTimeout(() => {
+              const el = boardRef.current?.getBoundingClientRect();
+              const cx = el ? el.left + el.width / 2 : window.innerWidth / 2;
+              const cy = el ? el.bottom : window.innerHeight;
+              fx.confetti(cx - 160, cy, -75, 30 + e.tier * 10, 0.8, 30);
+              fx.confetti(cx + 160, cy, -105, 30 + e.tier * 10, 0.8, 30);
+              const w = walletPos();
+              fx.ring(w.x, w.y, '#ffd34d', 160 + e.tier * 30, 0.8);
+              fx.sparks(w.x, w.y, '#ffd34d', 20 + e.tier * 6, 300);
+              setComboPulse((k) => k + 1);
+            }, 460);
+            break;
+          }
+          case 'comboBreak':
+            sfx.comboBreak(e.combo);
+            setToast({ id: Date.now(), text: `Combo x${e.combo} lost!`, tone: 'bad' });
+            setTimeout(() => setToast((t) => (t && t.tone === 'bad' ? null : t)), 1800);
+            break;
+          case 'block': {
+            sfx.block();
+            if (now - lastBlock.current > 140) { lastBlock.current = now; const s = toScreen(e.x, e.y); fx.sparks(s.x, s.y, '#2ac3de', 8, 180, 0); }
+            break;
+          }
+          case 'leak': sfx.leak(); break;
+          case 'overheat': { sfx.overheat(); const s = toScreen(e.x, e.y); fx.embers(s.x, s.y, 14); break; }
+          case 'cooled': { sfx.cooled(); const s = toScreen(e.x, e.y); fx.sparks(s.x, s.y, '#7dcfff', 14, 200, 0); break; }
+          case 'poke': {
+            const prog = e.kind === 'reboot' ? 1 - e.left / TUNING.crashSeconds : 1 - e.left;
+            sfx.poke(prog, e.kind);
+            const s = toScreen(e.x, e.y);
+            fx.sparks(s.x, s.y, e.kind === 'reboot' ? '#ffc857' : '#7dcfff', 8, 200, 0);
+            break;
+          }
+          case 'upgrade': {
+            sfx.upgrade(e.lvl);
+            const s = toScreen(e.x, e.y);
+            fx.sparks(s.x, s.y, '#ffd34d', 26, 320); fx.ring(s.x, s.y, '#ffd34d', 140, 0.6);
+            break;
+          }
+          case 'ddos':
+            sfx.ddos();
+            setQuake(true); setTimeout(() => setQuake(false), 650);
+            break;
           case 'crash': {
             sfx.crash();
             const s = toScreen(e.x, e.y);
@@ -184,9 +244,12 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
       const ph = phaseRef.current;
       // Once the result screen is up the board is dead weight: stop simulating, drawing and re-rendering it,
       // so every bit of CPU/GPU goes to the celebration.
-      if (ph === 'result') return;
+      if (ph === 'result') { if (musicOn.current) { musicOn.current = false; sfx.musicStop(); } return; }
       const live = sim.status === 'running' && ph === 'play';
       const frozen = !!tutRef.current?.freeze;
+      const wantMusic = live && !frozen;
+      if (wantMusic !== musicOn.current) { musicOn.current = wantMusic; if (wantMusic) sfx.musicStart(); else sfx.musicStop(); }
+      if (wantMusic) sfx.setMood({ tier: sim.comboTier, danger: sim.happy < 45 ? 1 : 0, hype: sim.spiking });
       if (live && !frozen) {
         acc += dt * speedRef.current;
         let n = 0;
@@ -208,7 +271,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
       raf = requestAnimationFrame(loop);
     };
     raf = requestAnimationFrame(loop);
-    return () => { cancelAnimationFrame(raf); if (timer) clearTimeout(timer); fx.onCoinArrive = null; fx.clear(); };
+    return () => { cancelAnimationFrame(raf); if (timer) clearTimeout(timer); sfx.musicStop(); fx.onCoinArrive = null; fx.clear(); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -366,6 +429,8 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
       window.removeEventListener('pointermove', move);
       window.removeEventListener('pointerup', up);
       window.removeEventListener('pointercancel', up);
+      // clicking a crashed or overheating box repairs it instead of selecting it
+      if (!moved && sim.status === 'running' && (n.down > 0 || n.heat > 0.5) && sim.poke(id)) { bump(); return; }
       setSelected((s) => (!moved && s === id ? null : id));
     };
     window.addEventListener('pointermove', move);
@@ -407,6 +472,19 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
     window.addEventListener('pointercancel', up);
   };
 
+  const onUpgrade = (id: number) => {
+    const r = sim.upgrade(id);
+    if (!r.ok) { say(r.reason ?? "Can't upgrade"); return; }
+    // events normally drain while running; give instant feedback while planning too
+    sim.evq = sim.evq.filter((e) => e.type !== 'upgrade');
+    const n = sim.node(id);
+    if (n) {
+      const s = toScreen(n.x + NODE_W / 2, n.y + NODE_H / 2);
+      sfx.upgrade(n.lvl);
+      fx.sparks(s.x, s.y, '#ffd34d', 26, 320); fx.ring(s.x, s.y, '#ffd34d', 140, 0.6);
+    }
+    bump();
+  };
   const onCut = (id: number) => { sim.cut(id); sfx.cut(); bump(); };
   const onSell = (id: number) => {
     const n = sim.node(id);
@@ -456,6 +534,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
     if (e.key === 'Escape') { setHand(null); setWiring(null); setSelected(null); return; }
     if ((e.key === 'Delete' || e.key === 'Backspace') && selected !== null) { onSell(selected); return; }
     if (e.key === 'l' || e.key === 'L') { setPanelOpen((s) => !s); return; }
+    if ((e.key === 'u' || e.key === 'U') && selected !== null) { onUpgrade(selected); return; }
     if (e.key === '?' || e.key === 'h' || e.key === 'H') { replay(); return; }
     const tool = level.tools.find((k) => NODE_DEFS[k].key === e.key);
     if (tool) armTool(tool);
@@ -523,6 +602,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
             {steps && <Tab icon="book" label="tutorial.md" onClick={replay} color="#ffc857" />}
             <div className="ml-auto hidden items-center gap-3 px-3 text-[10.5px] text-dim lg:flex">
               <span className="flex items-center gap-1"><span className="kbd">Space</span> run</span>
+              <span className="flex items-center gap-1"><span className="kbd">U</span> overclock</span>
               <span className="flex items-center gap-1"><span className="kbd">Del</span> sell</span>
               <span className="flex items-center gap-1"><span className="kbd">Esc</span> cancel</span>
             </div>
@@ -534,7 +614,7 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
             sim={sim} tick={tick} boardRef={boardRef} canvasRef={canvasRef}
             selected={selected} hand={hand} wiring={wiring} target={showTarget} quake={quake}
             onBoardDown={onBoardDown} onBoardMove={onBoardMove}
-            onNodeDown={onNodeDown} onPortDown={onPortDown} onCut={onCut} onSell={onSell}
+            onNodeDown={onNodeDown} onPortDown={onPortDown} onCut={onCut} onSell={onSell} onUpgrade={onUpgrade} comboPulse={comboPulse}
           />
 
           <BottomPanel

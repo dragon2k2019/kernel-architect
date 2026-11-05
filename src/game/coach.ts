@@ -14,6 +14,8 @@ const WANT: Record<string, Want> = {
   L5: { cache: true, lb: true, servers: 3, dbs: 1 },
   L6: { cache: true, lb: true, servers: 3, dbs: 2 },
   L7: { cache: true, lb: true, servers: 3, dbs: 2 },
+  L8: { cache: true, lb: true, servers: 3, dbs: 2 },
+  L9: { cache: true, lb: true, servers: 4, dbs: 2 },
 };
 
 const I = (k: Kind) => NODE_DEFS[k].label;
@@ -42,7 +44,7 @@ export function coach(sim: Sim): Coach {
   }
   if (dbs.length < want.dbs) {
     return {
-      text: sim.level.id === 'L6' || sim.level.id === 'L7'
+      text: sim.level.id === 'L6' || sim.level.id === 'L7' || sim.level.id === 'L8' || sim.level.id === 'L9'
         ? `Boxes crash. Build 2 Databases so one can fail. (${dbs.length}/${want.dbs})`
         : `Data needs a Database. Add one.`,
       tone: 'info', target: { tool: 'db' },
@@ -92,6 +94,13 @@ function runningCoach(sim: Sim): Coach {
   if (worst) {
     return { text: `A ${worst.label} is getting overloaded. Add another and wire it in.`, tone: 'warn', target: { node: worst.id } };
   }
+  const crashed = sim.nodes.find((n) => n.down > 0);
+  if (crashed) return { text: `${crashed.name} crashed! Click it fast to reboot it.`, tone: 'bad', target: { node: crashed.id } };
+  const hot = sim.nodes.find((n) => n.hot);
+  if (hot) return { text: `${hot.name} is overheating and slowing down. Click it to cool it, or add more boxes.`, tone: 'warn', target: { node: hot.id } };
+  if (sim.leaked > 3 && sim.ddos && !sim.nodes.some((n) => n.kind === 'fw')) return { text: 'Bots are hogging your servers. A Firewall at the front blocks them.', tone: 'warn', target: { tool: 'fw' } };
+  if (sim.ddos) return { text: 'DDoS! Block the bots and keep the real visitors flowing.', tone: 'warn' };
   if (sim.spiking) return { text: 'Traffic spike! Hold on...', tone: 'warn' };
+  if (sim.comboTier >= 3) return { text: `Combo x${sim.combo}! Revenue is x${sim.comboMult.toFixed(1)}. Do not drop a single visitor.`, tone: 'good' };
   return { text: 'Looking good. Keep an eye on the faces on each box.', tone: 'good' };
 }
