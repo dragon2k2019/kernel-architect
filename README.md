@@ -74,3 +74,19 @@ The simulation (`src/game/sim.ts`) is a deterministic, seeded, UI-free engine. U
 packets are drawn on a canvas, rewards on a full-screen particle canvas (`src/game/particles.ts`).
 
 `research/` holds the original market analysis.
+
+## Built with MySpec
+
+<a href="https://myspec.dev/?utm_source=kernelarchitect&utm_medium=readme&utm_campaign=builtwith" target="_blank" rel="nofollow"><img src="https://myspec.dev/LogoText.png" alt="MySpec" height="28"></a>
+
+Kernel Architect was built with [MySpec](https://myspec.dev/?utm_source=kernelarchitect&utm_medium=readme&utm_campaign=builtwith), a spec-driven way to turn an idea into a working app. The title screen carries a "Built with MySpec" badge (`src/ui/MySpecBadge.tsx`).
+
+**Want to make your own game or app?** [Try MySpec](https://myspec.dev/?utm_source=kernelarchitect&utm_medium=readme&utm_campaign=builtwith).
+
+### Contributing (PRs welcome)
+
+PRs are welcome, including ones that help spread the word about MySpec:
+
+- Keep the **Built with MySpec** badge on the title screen and in this README.
+- Building a fork, remix or new level pack? Add a "Built with MySpec" link to your README and open a PR to list it here.
+- Share your build on social media or a blog post and link to [myspec.dev](https://myspec.dev/?utm_source=kernelarchitect&utm_medium=readme&utm_campaign=builtwith). Open a PR to add it to this README.

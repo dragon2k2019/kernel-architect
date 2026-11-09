@@ -5,6 +5,7 @@ import { cn } from '../utils/cn';
 import { Btn, Dots, Tab } from './Chrome';
 import { Icon, NodeIcon, type IconName } from './icons';
 import { SoundToggle } from './SoundToggle';
+import { MySpecBadge } from './MySpecBadge';
 
 export function isUnlocked(l: Level, p: Progress): boolean {
   if (l.n === 1) return true;
@@ -179,6 +180,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
               </div>
 
               <div className="mt-8 text-[11px] text-dim"><span className="text-ok">$</span> drag. connect. don't get paged at 3am.</div>
+              <div className="mt-6"><MySpecBadge /></div>
             </div>
           </div>
         </main>
