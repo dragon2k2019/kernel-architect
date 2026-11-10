@@ -30,7 +30,7 @@ export default function App() {
     const pay = payout(sim);
     update((prev) => {
       const next: Progress = { ...prev, stars: { ...prev.stars }, bank: prev.bank + pay.total };
-      if (sim.level.endless) next.best = Math.max(prev.best, sim.ok);
+      if (sim.level.endless) { next.best = Math.max(prev.best, sim.ok); next.bestPhase = Math.max(prev.bestPhase, sim.cleared); }
       else if (sim.status === 'won') next.stars[sim.level.id] = Math.max(prev.stars[sim.level.id] ?? 0, sim.stars);
       return next;
     });

@@ -1,6 +1,6 @@
 import { mulberry32 } from './rng';
 import {
-  NODE_DEFS, REQ, TUNING, rateAt,
+  NODE_DEFS, PHASE_SECONDS, REQ, TUNING, phaseInfo, rateAt,
   type GameEvent, type Kind, type Level, type ReqType,
 } from './content';
 
@@ -61,6 +61,8 @@ export type SimEvent =
   | { type: 'fail'; x: number; y: number; code: number }
   | { type: 'crash'; x: number; y: number }
   | { type: 'spike' }
+  | { type: 'flush' }
+  | { type: 'phase'; cleared: number; bonus: number; flawless: boolean }
   | { type: 'warn' }
   | { type: 'back'; x: number; y: number };
 export interface Banner { text: string; kind: 'warn' | 'bad' | 'info'; until: number }
@@ -106,6 +108,7 @@ export class Sim {
   leaked = 0;
   vipOk = 0;
   vipLost = 0;
+  flawless = 0; // Production: phases cleared without a single failed visitor
   evq: SimEvent[] = [];
   failTimes: { t: number; code: number }[] = [];
   doneTimes: number[] = [];
@@ -114,6 +117,9 @@ export class Sim {
   private spikeUntil = 0;
   private spikeMult = 1;
   private ddosUntil = 0;
+  private flushUntil = 0;
+  private phaseDone = 0;
+  private phaseFail0 = 0;
   private evIdx = 0;
   private warned = new Set<number>();
   private counters: Record<string, number> = {};
@@ -148,9 +154,33 @@ export class Sim {
   get ddos(): boolean { return this.t < this.ddosUntil; }
   get comboTier(): number { return Math.min(TUNING.comboMaxTier, Math.floor(this.combo / TUNING.comboStep)); }
   get comboMult(): number { return 1 + TUNING.comboBonus * this.comboTier; }
+  // ---- Production scaling: every phase makes the same board work harder ----
+  /** 1-based phase of the endless level. */
+  get phase(): number { return Math.floor(this.t / PHASE_SECONDS) + 1; }
+  /** Phases fully survived so far. */
+  get cleared(): number { return this.phaseDone; }
+  get flushing(): boolean { return this.t < this.flushUntil; }
+  get cacheHit(): number {
+    if (!this.level.endless) return TUNING.cacheHit;
+    if (this.t < this.flushUntil) return 0.1; // cache stampede: everything is cold
+    return Math.max(0.4, TUNING.cacheHit - 0.025 * (this.phase - 1));
+  }
+  get botBlock(): number {
+    return this.level.endless ? Math.max(0.72, TUNING.botBlock - 0.02 * (this.phase - 1)) : TUNING.botBlock;
+  }
+  get dataShare(): number {
+    return this.level.endless ? Math.min(0.7, this.level.dataShare + 0.025 * (this.phase - 1)) : this.level.dataShare;
+  }
+  get vipShare(): number {
+    const v = this.level.vipShare ?? 0;
+    return this.level.endless ? Math.min(0.12, v + 0.005 * (this.phase - 1)) : v;
+  }
+  private get heatMult(): number {
+    return this.level.endless ? 1 + Math.min(0.6, 0.06 * (this.phase - 1)) : 1;
+  }
   get botShare(): number {
     let s = this.level.botShare ?? 0;
-    if (this.level.endless) s = 0.1 + Math.min(0.25, this.t * 0.0012);
+    if (this.level.endless) s = 0.12 + Math.min(0.33, this.t * 0.001);
     if (this.t < this.ddosUntil) s = Math.max(s, 0.65);
     return s;
   }
@@ -304,6 +334,7 @@ export class Sim {
     if (this.status !== 'running') return;
     this.t += dt;
     this.runEvents();
+    this.checkPhase();
     this.spawn(dt);
     this.moveReqs(dt);
     for (const n of this.nodes) this.work(n, dt);
@@ -315,6 +346,24 @@ export class Sim {
     this.checkEnd();
   }
 
+  /** Production: every minute you stay up is a phase. Clearing one pays, heals a little, then it gets worse. */
+  private checkPhase() {
+    if (!this.level.endless) return;
+    const done = Math.floor(this.t / PHASE_SECONDS);
+    if (done <= this.phaseDone) return;
+    this.phaseDone = done;
+    const flawless = this.fail === this.phaseFail0;
+    this.phaseFail0 = this.fail;
+    if (flawless) this.flawless++;
+    const bonus = (60 + 40 * done) * (flawless ? 2 : 1);
+    this.cash += bonus; this.earned += bonus;
+    this.happy = Math.min(100, this.happy + 15);
+    const next = phaseInfo(done + 1);
+    this.banner = { text: `PHASE ${done + 1}: ${next.name}. ${next.note}`, kind: 'info', until: this.t + 6 };
+    this.log(0, 'SYS', '', 'prod', `phase ${done} cleared${flawless ? ' (flawless)' : ''} +$${bonus}`);
+    this.emit({ type: 'phase', cleared: done, bonus, flawless });
+  }
+
   private runEvents() {
     const evs = this.level.events;
     // heads-up a few seconds before things go wrong
@@ -323,7 +372,7 @@ export class Sim {
         this.warned.add(i);
         this.emit({ type: 'warn' });
         this.banner = {
-          text: e.kind === 'spike' ? 'Traffic spike incoming...' : e.kind === 'ddos' ? 'Bot swarm incoming...' : 'Something is about to break...',
+          text: e.kind === 'spike' ? 'Traffic spike incoming...' : e.kind === 'ddos' ? 'Bot swarm incoming...' : e.kind === 'flush' ? 'Cache stampede incoming...' : 'Something is about to break...',
           kind: 'warn', until: e.at,
         };
       }
@@ -345,18 +394,32 @@ export class Sim {
       this.emit({ type: 'ddos' });
       this.banner = { text: `DDoS! Bots are flooding in  traffic x${this.spikeMult}`, kind: 'bad', until: this.ddosUntil };
       this.log(0, 'SYS', '', 'waf', `bot swarm detected - traffic x${this.spikeMult}`);
+    } else if (e.kind === 'flush') {
+      this.flushUntil = this.t + (e.dur ?? 10);
+      this.emit({ type: 'flush' });
+      this.banner = { text: 'CACHE STAMPEDE! Caches are cold. Backends take the full load.', kind: 'bad', until: this.flushUntil };
+      this.log(0, 'SYS', '', 'redis', 'FLUSHALL - cache is cold');
     } else {
-      const pool = this.nodes.filter((n) => n.down <= 0 && (e.target === 'any' || !e.target
-        ? n.kind === 'server' || n.kind === 'db' : n.kind === e.target));
-      if (!pool.length) return;
-      const v = pool[Math.floor(this.rng() * pool.length)];
-      v.down = TUNING.crashSeconds; v.heat = 0; v.hot = false;
-      this.emit({ type: 'crash', x: v.x + NODE_W / 2, y: v.y + NODE_H / 2 });
-      const msg = v.kind === 'db' ? `${v.name} ran out of disk` : `${v.name} was OOM-killed`;
-      this.banner = { text: `${msg}. Click it to reboot faster!`, kind: 'bad', until: this.t + 5 };
-      this.log(0, 'SYS', '', v.name, msg);
-      for (const r of [...v.queue, ...(v.cur ? [v.cur] : [])]) this.failReq(r, 502, v, 'host crashed');
-      v.queue = []; v.cur = null;
+      const downed: string[] = [];
+      for (let i = 0; i < (e.count ?? 1); i++) {
+        const pool = this.nodes.filter((n) => n.down <= 0 && (e.target === 'any' || !e.target
+          ? n.kind === 'server' || n.kind === 'db' : n.kind === e.target));
+        if (!pool.length) break;
+        const v = pool[Math.floor(this.rng() * pool.length)];
+        v.down = TUNING.crashSeconds; v.heat = 0; v.hot = false;
+        this.emit({ type: 'crash', x: v.x + NODE_W / 2, y: v.y + NODE_H / 2 });
+        const msg = v.kind === 'db' ? `${v.name} ran out of disk` : `${v.name} was OOM-killed`;
+        downed.push(v.name);
+        this.log(0, 'SYS', '', v.name, msg);
+        for (const r of [...v.queue, ...(v.cur ? [v.cur] : [])]) this.failReq(r, 502, v, 'host crashed');
+        v.queue = []; v.cur = null;
+      }
+      if (downed.length === 1) {
+        const v = this.nodes.find((n) => n.name === downed[0])!;
+        this.banner = { text: `${v.name} ${v.kind === 'db' ? 'ran out of disk' : 'was OOM-killed'}. Click it to reboot faster!`, kind: 'bad', until: this.t + 5 };
+      } else if (downed.length > 1) {
+        this.banner = { text: `${downed.length} boxes down at once (${downed.join(', ')}). Click them to reboot!`, kind: 'bad', until: this.t + 5 };
+      }
     }
   }
 
@@ -367,10 +430,10 @@ export class Sim {
       const id = this.nextId++;
       const roll = this.rng();
       const bs = this.botShare;
-      const vs = this.level.vipShare ?? 0;
+      const vs = this.vipShare;
       const type: ReqType = roll < bs ? 'bot'
         : roll < bs + vs ? 'vip'
-          : this.rng() < this.level.dataShare ? 'data' : 'page';
+          : this.rng() < this.dataShare ? 'data' : 'page';
       const inet = this.node(this.internetId)!;
       const req: Req = {
         id, type, born: this.t, wire: 0, p: 0, viaServer: false,
@@ -425,13 +488,13 @@ export class Sim {
         return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
       }
       case 'fw': {
-        if (r.type === 'bot' && this.rng() < TUNING.botBlock) return this.block(r, n, true);
+        if (r.type === 'bot' && this.rng() < this.botBlock) return this.block(r, n, true);
         const w = this.pick(n);
         return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
       }
       case 'cache': {
-        if (r.type === 'bot' && this.rng() < TUNING.cacheHit) return this.block(r, n, false);
-        if (this.rng() < TUNING.cacheHit) return this.succeed(r, n, 'cache hit');
+        if (r.type === 'bot' && this.rng() < this.cacheHit) return this.block(r, n, false);
+        if (this.rng() < this.cacheHit) return this.succeed(r, n, 'cache hit');
         const w = this.pick(n);
         return w ? this.send(w, r) : this.failReq(r, 502, n, 'no upstream');
       }
@@ -492,7 +555,7 @@ export class Sim {
       n.heat = Math.max(0, n.heat - TUNING.heatVentHot * dt);
       if (n.heat <= TUNING.heatResume) { n.hot = false; this.emit({ type: 'cooled', x, y }); }
     } else if (n.cur) {
-      n.heat = Math.min(1, n.heat + (dt * TUNING.heatRate * (0.55 + fill)) / (1 + 0.55 * (n.lvl - 1)));
+      n.heat = Math.min(1, n.heat + (dt * TUNING.heatRate * this.heatMult * (0.55 + fill)) / (1 + 0.55 * (n.lvl - 1)));
       if (n.heat >= 1) { n.hot = true; this.emit({ type: 'overheat', x, y }); this.addFx(n, 'OVERHEAT', '#ff9e64'); }
     } else n.heat = Math.max(0, n.heat - TUNING.heatVent * dt);
   }

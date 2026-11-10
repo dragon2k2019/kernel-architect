@@ -126,7 +126,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                   <Icon name={open ? l.icon : 'lock'} size={16} className={open ? 'text-cyan' : ''} />
                   <span className="min-w-0 flex-1 truncate">{fileName(l)}</span>
                   {l.endless ? (
-                    <span className="text-[10px] text-gold">{progress.best ? `best ${progress.best}` : ''}</span>
+                    <span className="text-[10px] text-gold">{progress.best ? `best ${progress.best}${progress.bestPhase ? ` · P${progress.bestPhase}` : ''}` : ''}</span>
                   ) : open ? <Stars n={s} size={11} /> : null}
                 </button>
               );

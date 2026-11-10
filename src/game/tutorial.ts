@@ -128,5 +128,5 @@ export const TUTORIALS: Record<string, TutStep[]> = {
   L6: [{ id: 'hi', icon: 'skull', title: 'Boxes will crash', body: 'A crashed box reboots slowly. Keep a spare Server and a second Database.', mode: 'next', btn: 'Ready' }],
   L8: [{ id: 'hi', icon: 'shield', title: 'Bot swarm ahead', body: 'Red diamonds are bots. They pay nothing and hog servers. Put a Firewall first in line.', fact: 'fw', mode: 'next', btn: 'Ready' }],
   L9: [{ id: 'hi', icon: 'flame', title: 'Black Friday', body: 'Golden stars pay 6x but leave after 4 seconds. Chain successes for a combo. Click crashed or hot boxes to fix them.', mode: 'next', btn: 'Ready' }],
-  L7: [{ id: 'hi', icon: 'infinity', title: 'No finish line', body: 'Stay online as long as you can. It only gets harder.', mode: 'next', btn: 'Ready' }],
+  L7: [{ id: 'hi', icon: 'infinity', title: 'Survive the phases', body: 'Every minute is a new phase and it only gets meaner: caches go cold, bots evolve, boxes crash in groups. Clear phases for bonus cash and rank. A phase with zero failed visitors is FLAWLESS and pays double.', mode: 'next', btn: 'Ready' }],
 };

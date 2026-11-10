@@ -1,4 +1,5 @@
 import type { Sim } from '../game/sim';
+import { PHASE_SECONDS, phaseInfo, rankFor } from '../game/content';
 import { cn } from '../utils/cn';
 import { Face, Icon, type Mood } from './icons';
 
@@ -72,9 +73,19 @@ export function TopBar({ sim, speed, goHint, onSpeed, onGo }: Props) {
             </div>
           </>
         ) : (
-          <div className="flex items-baseline gap-3 text-[11px]">
-            <span className="flex items-center gap-1.5 text-dim"><Icon name="clock" size={13} className="text-ok" /><b className="text-lg text-ok">{mmss(sim.t)}</b></span>
-            <span className="text-dim">{sim.ok} served</span>
+          <div>
+            <div className="flex items-baseline gap-3 text-[11px]">
+              <span className="flex items-center gap-1.5 text-dim"><Icon name="clock" size={13} className="text-ok" /><b className="text-lg text-ok">{mmss(sim.t)}</b></span>
+              <span className="text-dim">{sim.ok} served</span>
+              <b className="truncate text-gold" title={`Rank: ${rankFor(sim.cleared)}`}>PHASE {sim.phase}<span className="hidden text-dim sm:inline"> · {phaseInfo(sim.phase).name}</span></b>
+              {sim.flushing && <b className="animate-pulse text-bad">COLD CACHE</b>}
+            </div>
+            <div className="relative mt-1 h-2 overflow-hidden rounded-full bg-ink" title="Time until this phase is cleared">
+              <div
+                className="h-full rounded-full bg-gradient-to-r from-gold/70 to-gold transition-[width] duration-200"
+                style={{ width: `${((sim.t % PHASE_SECONDS) / PHASE_SECONDS) * 100}%` }}
+              />
+            </div>
           </div>
         )}
       </div>

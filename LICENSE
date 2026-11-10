@@ -1,0 +1,67 @@
+MySpec Credit License (MIT-based), version 1.0
+
+Copyright (c) 2026 dragon2k2019 and the Kernel Architect contributors
+
+Kernel Architect is free for everyone. Play it, host it, fork it, remix it,
+teach with it, sell things made from it. No fee, no permission needed.
+
+The one thing we ask in return: pass the MySpec credit along, every time.
+
+--------------------------------------------------------------------------
+1. PERMISSION
+--------------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the conditions below. This includes commercial
+use.
+
+--------------------------------------------------------------------------
+2. CONDITIONS
+--------------------------------------------------------------------------
+(a) Notice. The copyright notice and this license shall be included in all
+    copies or substantial portions of the Software.
+
+(b) MySpec credit. Every copy, fork, remix, port or derivative work of the
+    Software that is made public (hosted online, published, or distributed)
+    must show a visible "Built with MySpec" credit that links to
+    https://myspec.dev, in BOTH of these places:
+
+      1. inside the running game or app (a dark or light credit, in any
+         corner of the screen that stays visible, is fine), and
+      2. at the top level of the project's README, in a short section that
+         tells readers what MySpec is and links to https://myspec.dev.
+
+    The credit may be restyled (colors, size, dark or light version, corner)
+    but it must stay readable, must not be hidden, and must keep its link.
+
+(c) Credit carries forward. If you let others fork or reuse your derivative
+    work, you must keep this license (including this condition) on it, so the
+    MySpec credit travels with every generation of the project.
+
+(d) Contribution credits. Anyone who contributes to the Software (code, levels,
+    art, sound, docs, translations) may add themselves to CREDITS.md in the
+    same pull request, and is thereby credited next to MySpec. Contributions
+    are accepted under these same license terms. Contributors who also share
+    or write about their build with a link to https://myspec.dev earn a
+    "Spread the word" mention in CREDITS.md.
+
+(e) Private use. Copies that stay private (on your own machine, inside your
+    school or company, never made public) do not need the in-app credit.
+
+--------------------------------------------------------------------------
+3. NO WARRANTY
+--------------------------------------------------------------------------
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+--------------------------------------------------------------------------
+Note: "MySpec" and its logo belong to MySpec (https://myspec.dev). This
+license grants no rights to them beyond showing the credit described above.

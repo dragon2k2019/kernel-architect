@@ -2,7 +2,7 @@
 import type { Sim } from './sim';
 import { TUNING } from './content';
 
-export interface Progress { stars: Record<string, number>; best: number; bank: number; tuts: Record<string, boolean> }
+export interface Progress { stars: Record<string, number>; best: number; bestPhase: number; bank: number; tuts: Record<string, boolean> }
 
 const KEY = 'kernel-architect.v3';
 
@@ -12,10 +12,10 @@ export function loadProgress(): Progress {
     if (raw) {
       const p = JSON.parse(raw);
       // older saves only had one global flag: that meant "the old how-to-play was read", so treat it as L1 done
-      return { stars: p.stars ?? {}, best: p.best ?? 0, bank: p.bank ?? 0, tuts: p.tuts ?? (p.seenTutorial ? { L1: true } : {}) };
+      return { stars: p.stars ?? {}, best: p.best ?? 0, bestPhase: p.bestPhase ?? 0, bank: p.bank ?? 0, tuts: p.tuts ?? (p.seenTutorial ? { L1: true } : {}) };
     }
   } catch { /* ignore */ }
-  return { stars: {}, best: 0, bank: 0, tuts: {} };
+  return { stars: {}, best: 0, bestPhase: 0, bank: 0, tuts: {} };
 }
 
 export function saveProgress(p: Progress) {

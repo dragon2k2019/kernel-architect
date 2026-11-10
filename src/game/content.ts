@@ -129,10 +129,11 @@ export const TUNING = {
 export interface Wave { until: number; from: number; to: number }
 export interface GameEvent {
   at: number;
-  kind: 'spike' | 'crash' | 'ddos';
+  kind: 'spike' | 'crash' | 'ddos' | 'flush';
   dur?: number;
   mult?: number;
   target?: 'server' | 'db' | 'any';
+  count?: number; // crash: how many boxes go down at once
 }
 
 export interface Level {
@@ -152,6 +153,52 @@ export interface Level {
   waves: Wave[]; // requests per second over time
   events: GameEvent[];
   endless?: boolean;
+}
+
+// ---------- Production (the endless final level) ----------
+// Every PHASE_SECONDS is a new phase. Clearing one pays a bonus, heals a little and the next one gets worse:
+// colder caches, smarter bots, more data requests, hotter servers and bigger crashes.
+export const PHASE_SECONDS = 60;
+export const PHASES: { name: string; note: string }[] = [
+  { name: 'Soft Launch', note: 'A quiet start. Enjoy it.' },
+  { name: 'Product Hunt', note: 'Caches start going cold.' },
+  { name: 'Series A', note: 'Two boxes can die at once now.' },
+  { name: 'Hypergrowth', note: 'More data requests. Mind your databases.' },
+  { name: 'Unicorn', note: 'Bots are evolving. The firewall leaks.' },
+  { name: 'Hostile Takeover', note: 'Servers run hotter. Keep clicking them cool.' },
+  { name: 'Global Outage Season', note: 'Triple crashes. Keep a spare box.' },
+  { name: 'Kernel Panic', note: 'Everything at once, all the time.' },
+  { name: 'Heat Death', note: 'Nobody has made it this far.' },
+];
+export const phaseInfo = (n: number) => PHASES[Math.min(PHASES.length - 1, Math.max(0, n - 1))];
+
+/** Rank for the number of phases you cleared. */
+export const RANKS = ['Intern', 'Junior Dev', 'DevOps', 'Senior SRE', 'Staff Engineer', 'Principal', 'Distinguished', 'Fellow', 'Kernel Architect'];
+export const rankFor = (cleared: number) => RANKS[Math.min(RANKS.length - 1, Math.max(0, cleared))];
+
+function productionEvents(): GameEvent[] {
+  const ev: GameEvent[] = [];
+  for (let p = 0; p < 16; p++) {
+    const s = p * PHASE_SECONDS;
+    const spike = Math.min(3.6, 2 + 0.14 * p);
+    const ddos = Math.min(3.4, 2.1 + 0.12 * p);
+    if (p === 0) {
+      // phase 1 is a warm-up: one of everything, gently
+      ev.push({ at: s + 18, kind: 'spike', dur: 10, mult: 1.8 });
+      ev.push({ at: s + 36, kind: 'crash', target: 'any' });
+      ev.push({ at: s + 48, kind: 'ddos', dur: 10, mult: 2 });
+      continue;
+    }
+    ev.push({ at: s + 10, kind: 'spike', dur: 12, mult: spike });
+    ev.push({ at: s + 22, kind: 'crash', target: 'any', count: Math.min(3, 1 + Math.floor(p / 2)) });
+    ev.push({ at: s + 31, kind: 'flush', dur: 9 + Math.min(6, p) });
+    ev.push({ at: s + 40, kind: 'ddos', dur: 12, mult: ddos });
+    ev.push({ at: s + 47, kind: 'crash', target: 'server', count: Math.min(3, 1 + Math.floor((p - 1) / 3)) });
+    // the finale of every phase: a spike and a crash land together
+    ev.push({ at: s + 54, kind: 'spike', dur: 6, mult: spike + 0.4 });
+    ev.push({ at: s + 54, kind: 'crash', target: 'db', count: Math.min(2, 1 + Math.floor(p / 4)) });
+  }
+  return ev;
 }
 
 export const LEVELS: Level[] = [
@@ -240,20 +287,15 @@ export const LEVELS: Level[] = [
   },
   {
     id: 'L7', n: 9, name: 'Production', icon: 'infinity',
-    blurb: 'No finish line. How long can you stay up?',
-    goalText: 'Survive as long as you can', goal: null, tools: ['server', 'lb', 'db', 'cache', 'fw'],
-    cash: 520, dataShare: 0.45, vipShare: 0.07, waves: [{ until: 1, from: 4, to: 4 }], endless: true,
-    events: Array.from({ length: 80 }, (_, i): GameEvent =>
-      i % 4 === 3
-        ? { at: 28 + i * 18, kind: 'ddos', dur: 12, mult: 2 }
-        : i % 4 === 2
-          ? { at: 28 + i * 18, kind: 'crash', target: 'any' }
-          : { at: 28 + i * 18, kind: 'spike', dur: 12, mult: 2 }),
+    blurb: 'The final boss. Every minute is a new phase, and every phase is meaner than the last.',
+    goalText: 'Clear phases. Become a Kernel Architect.', goal: null, tools: ['server', 'lb', 'db', 'cache', 'fw'],
+    cash: 460, dataShare: 0.45, vipShare: 0.07, waves: [{ until: 1, from: 4, to: 4 }], endless: true,
+    events: productionEvents(),
   },
 ];
 
 export function rateAt(level: Level, t: number): number {
-  if (level.endless) return Math.min(44, 4 + t * 0.09);
+  if (level.endless) return Math.min(70, 5 + t * 0.13);
   let start = 0;
   let prev = level.waves[0].from;
   for (const w of level.waves) {

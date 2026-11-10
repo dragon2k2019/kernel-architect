@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type PointerEvent as RPE } from 'react';
-import { NODE_DEFS, TUNING, type Kind, type Level } from '../game/content';
+import { NODE_DEFS, RANKS, TUNING, rankFor, type Kind, type Level } from '../game/content';
 import { BOARD_H, BOARD_W, NODE_H, NODE_W, Sim } from '../game/sim';
 import { coach } from '../game/coach';
 import { drawPackets } from '../game/draw';
@@ -203,7 +203,32 @@ export function Play({ level, best, bank, hasNext, onFinish, onNext, onRetry, on
             setQuake(true); setTimeout(() => setQuake(false), 650);
             break;
           }
-          case 'spike': case 'warn': sfx.alarm(); break;
+          case 'spike': case 'warn': case 'flush': sfx.alarm(); break;
+          case 'phase': {
+            // Production: a phase is cleared. Pay out with a proper moment: sound, coins, confetti, rank.
+            const top = e.cleared >= RANKS.length - 1;
+            const rank = rankFor(e.cleared);
+            sfx.milestone(); sfx.kaching(e.flawless ? 1 : 0.6);
+            if (e.flawless) window.setTimeout(() => sfx.vip(), 260);
+            if (top) window.setTimeout(() => { sfx.boom(); sfx.fanfare(); }, 500);
+            setToast({
+              id: Date.now(),
+              text: top ? `RANK UP: ${rank.toUpperCase()}!  +$${e.bonus}`
+                : `PHASE ${e.cleared} CLEARED${e.flawless ? ', FLAWLESS' : ''}  +$${e.bonus}  |  rank: ${rank}`,
+              tone: 'good',
+            });
+            setTimeout(() => setToast((t) => (t && t.tone === 'good' ? null : t)), top ? 4200 : 3200);
+            const el = boardRef.current?.getBoundingClientRect();
+            const cx = el ? el.left + el.width / 2 : window.innerWidth / 2;
+            const cy = el ? el.bottom : window.innerHeight;
+            const w = walletPos();
+            fx.confetti(cx - 200, cy, -72, 44, 0.9, 30); fx.confetti(cx + 200, cy, -108, 44, 0.9, 30);
+            fx.coinFly(cx, cy - 80, w.x, w.y, e.flawless ? 14 : 8);
+            fx.ring(w.x, w.y, e.flawless ? '#ffffff' : '#ffd34d', 220, 0.9);
+            if (e.flawless || top) { window.setTimeout(() => { fx.confettiRain(2, 24); fx.sparks(w.x, w.y, '#ffd34d', 30, 340); }, 350); }
+            setComboPulse((k) => k + 1);
+            break;
+          }
           case 'back': { sfx.reboot(); const s = toScreen(e.x, e.y); fx.sparks(s.x, s.y, '#7ee787', 20, 260); break; }
         }
       }

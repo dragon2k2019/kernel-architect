@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { NODE_DEFS, type Level } from '../game/content';
+import { NODE_DEFS, phaseInfo, rankFor, type Level } from '../game/content';
 import { FAIL_HELP, type Sim } from '../game/sim';
 import { payout, STAR_BONUS } from '../game/store';
 import { TUNING } from '../game/content';
@@ -60,6 +60,8 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
   const won = sim.status === 'won';
   const endless = !!sim.level.endless;
   const record = endless && sim.ok > prevBest && sim.ok > 0;
+  const rank = rankFor(sim.cleared);
+  const topRank = endless && sim.cleared >= 8;
   const celebrate = won || record;
   const pay = payout(sim);
   const top = sim.topFailCode;
@@ -244,14 +246,14 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
   const report = [
     `KERNEL ARCHITECT | ${endless ? 'Production (endless)' : `L${sim.level.n} ${sim.level.name}`}`,
     endless
-      ? `uptime ${mmss(sim.t)} | served ${sim.ok} | p95 ${Math.round(sim.p95)}ms | errors ${errs}`
+      ? `rank ${rank} | ${sim.cleared} phases cleared (${sim.flawless} flawless) | uptime ${mmss(sim.t)} | served ${sim.ok} | p95 ${Math.round(sim.p95)}ms | errors ${errs}`
       : `${won ? `DEPLOYED ${sim.stars}/3 stars` : 'OUTAGE'} | uptime ${(sim.uptime * 100).toFixed(1)}% | p95 ${Math.round(sim.p95)}ms | errors ${errs}`,
   ].join('\n');
   const copy = async () => {
     try { await navigator.clipboard.writeText(report); setCopied(true); sfx.click(); setTimeout(() => setCopied(false), 1600); } catch { /* ignore */ }
   };
 
-  const title = endless ? (record ? 'NEW RECORD' : `Down after ${mmss(sim.t)}`) : won ? 'DEPLOYED' : 'OUTAGE';
+  const title = endless ? (topRank ? 'KERNEL ARCHITECT' : record ? 'NEW RECORD' : `Down after ${mmss(sim.t)}`) : won ? 'DEPLOYED' : 'OUTAGE';
   const pct = ((won || !plan.some((p) => p.fail) ? doneN : Math.min(doneN, 1)) / plan.length) * 100;
 
   return (
@@ -284,6 +286,23 @@ export function Result({ sim, prevBest, prevBank, hasNext, onNext, onRetry, onMe
             )}
           </div>
           {boom && !endless && !won && <p className="mt-1 text-[12px] text-dim">The site went down. It happens to everyone.</p>}
+          {boom && endless && (
+            <div className="mt-3 animate-fadeup rounded-xl border border-gold/40 bg-gold/5 px-4 py-3">
+              <div className="text-[10px] font-bold uppercase tracking-[0.25em] text-dim">your rank</div>
+              <div className="gold-text mt-0.5 text-2xl font-black tracking-tight">{rank}</div>
+              <div className="mt-1 text-[11.5px] text-dim">
+                {sim.cleared === 0
+                  ? 'Survive one full minute to clear Phase 1.'
+                  : <>cleared <b className="text-fg">{sim.cleared}</b> {sim.cleared === 1 ? 'phase' : 'phases'}
+                    {sim.flawless > 0 && <> · <b className="text-gold">{sim.flawless} flawless</b></>}</>}
+              </div>
+              <div className="mt-1.5 text-[11px] text-dim">
+                {topRank
+                  ? 'Nobody can promote you any higher. Go for flawless phases.'
+                  : <>fell during <b className="text-fg">Phase {sim.phase}: {phaseInfo(sim.phase).name}</b>. Next rank: <b className="text-fg">{rankFor(sim.cleared + 1)}</b> at {sim.cleared + 1} cleared.</>}
+              </div>
+            </div>
+          )}
           {boom && celebrate && !endless && <p className="mt-1 animate-fadeup text-[12px] text-dim">Your system survived. The internet thanks you.</p>}
 
           {/* pipeline */}
