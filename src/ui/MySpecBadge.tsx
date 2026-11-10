@@ -6,6 +6,11 @@ export function MySpecBadge({ className }: { className?: string }) {
   const [hover, setHover] = useState(false);
 
   const link: CSSProperties = {
+    position: 'fixed',
+    bottom: 16,
+    left: 16,
+    zIndex: 9999,
+    pointerEvents: 'auto',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',

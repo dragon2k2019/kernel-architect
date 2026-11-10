@@ -6,7 +6,6 @@ import { cn } from '../utils/cn';
 import { Btn, Dots, Tab } from './Chrome';
 import { Icon, NodeIcon, type IconName } from './icons';
 import { SoundToggle } from './SoundToggle';
-import { MySpecBadge } from './MySpecBadge';
 
 const LIVE_URL = 'https://dragon2k2019.github.io/kernel-architect/';
 const ALIAS_URL = 'https://kernel-architect-game.github.io/';
@@ -219,7 +218,6 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                 </div>
 
                 <div className="mt-8 text-[11px] text-dim"><span className="text-ok">$</span> drag. connect. don't get paged at 3am.</div>
-                <div className="mt-6"><MySpecBadge /></div>
               </div>
             ) : (
               <div className="relative mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center px-5 py-8">

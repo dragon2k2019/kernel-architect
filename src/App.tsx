@@ -7,6 +7,7 @@ import { Title } from './ui/Title';
 import { Play } from './ui/Play';
 import { TUTORIALS } from './game/tutorial';
 import { FxLayer } from './ui/FxLayer';
+import { MySpecBadge } from './ui/MySpecBadge';
 
 type Screen = { name: 'title' } | { name: 'level'; level: Level; attempt: number; tutorial: boolean };
 
@@ -68,6 +69,7 @@ export default function App() {
     <>
       {body}
       <FxLayer />
+      <MySpecBadge />
     </>
   );
 }
