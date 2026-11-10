@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import { LEVELS, NODE_DEFS, type Kind, type Level } from '../game/content';
 import type { Progress } from '../game/store';
 import { sfx } from '../game/sfx';
@@ -6,6 +7,9 @@ import { Btn, Dots, Tab } from './Chrome';
 import { Icon, NodeIcon, type IconName } from './icons';
 import { SoundToggle } from './SoundToggle';
 import { MySpecBadge } from './MySpecBadge';
+
+const LIVE_URL = 'https://dragon2k2019.github.io/kernel-architect/';
+const REPO_URL = 'https://github.com/dragon2k2019/kernel-architect';
 
 export function isUnlocked(l: Level, p: Progress): boolean {
   if (l.n === 1) return true;
@@ -47,10 +51,18 @@ function Stars({ n, size = 12 }: { n: number; size?: number }) {
 }
 
 export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay: (l: Level) => void; onHelp: () => void }) {
+  const [activeTab, setActiveTab] = useState<'welcome' | 'deploy'>('welcome');
+  const [copied, setCopied] = useState(false);
   const next = LEVELS.find((l) => isUnlocked(l, progress) && (progress.stars[l.id] ?? 0) === 0) ?? LEVELS[LEVELS.length - 1];
   const started = Object.keys(progress.stars).length > 0;
   const totalStars = Object.values(progress.stars).reduce((a, b) => a + b, 0);
   const play = (l: Level) => { sfx.unlock(); sfx.go(); onPlay(l); };
+
+  const copyLiveUrl = () => {
+    navigator.clipboard?.writeText(LIVE_URL);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   return (
     <div className="flex h-full flex-col bg-ink">
@@ -105,83 +117,166 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
           </div>
         </aside>
 
-        {/* welcome tab */}
+        {/* main tab area */}
         <main className="flex min-w-0 flex-1 flex-col">
-          <div className="flex shrink-0 border-b border-line bg-ink2"><Tab icon="rocket" label="Welcome.md" active color="#ffd34d" /></div>
+          <div className="flex shrink-0 border-b border-line bg-ink2">
+            <Tab icon="rocket" label="Welcome.md" active={activeTab === 'welcome'} color="#ffd34d" onClick={() => setActiveTab('welcome')} />
+            <Tab icon="globe" label="gh-pages.deploy" active={activeTab === 'deploy'} color="#7ee787" onClick={() => setActiveTab('deploy')} />
+          </div>
           <div className="scroll-thin relative min-h-0 flex-1 overflow-y-auto">
             <div className="pointer-events-none absolute inset-0 board-bg opacity-70" />
             <div className="pointer-events-none absolute left-1/2 top-[22%] h-[420px] w-[760px] -translate-x-1/2 -translate-y-1/2" style={{ background: "radial-gradient(closest-side, rgba(183,148,255,0.14), transparent)" }} />
-            <div className="relative mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center px-5 py-8 text-center">
-              <div className="mb-7 flex items-center gap-1.5 sm:gap-2" aria-hidden>
-                <Box kind="internet" />
-                <Pipe />
-                <Box kind="cache" delay={0.3} />
-                <Pipe delay={0.4} />
-                <Box kind="lb" delay={0.6} />
-                <Pipe delay={0.8} />
-                <Box kind="server" delay={0.9} />
-                <Pipe delay={1.2} />
-                <Box kind="db" delay={1.2} />
+
+            {activeTab === 'welcome' ? (
+              <div className="relative mx-auto flex min-h-full w-full max-w-2xl flex-col items-center justify-center px-5 py-8 text-center">
+                <div className="mb-7 flex items-center gap-1.5 sm:gap-2" aria-hidden>
+                  <Box kind="internet" />
+                  <Pipe />
+                  <Box kind="cache" delay={0.3} />
+                  <Pipe delay={0.4} />
+                  <Box kind="lb" delay={0.6} />
+                  <Pipe delay={0.8} />
+                  <Box kind="server" delay={0.9} />
+                  <Pipe delay={1.2} />
+                  <Box kind="db" delay={1.2} />
+                </div>
+
+                <div className="text-[11px] uppercase tracking-[0.5em] text-dim">kernel</div>
+                <h1 className="mt-1 text-[40px] font-black leading-none tracking-tight sm:text-7xl">
+                  <span className="gold-text">ARCHITECT</span><span className="animate-blink text-ok">_</span>
+                </h1>
+                <p className="mt-4 text-lg font-bold text-fg sm:text-xl">Keep the internet from melting.</p>
+
+                <div className="mt-5 w-full max-w-md overflow-hidden rounded-xl border border-line bg-ink/90 text-left text-[12px] leading-6 shadow-xl">
+                  <div className="flex items-center gap-1.5 border-b border-line bg-ink2 px-3 py-1.5 text-[10px] text-dim"><Icon name="terminal" size={12} /> bash</div>
+                  <div className="px-3.5 py-2.5">
+                    <div><span className="text-ok">$</span> <span className="text-fg">./kernel-architect --play</span></div>
+                    <div className="text-dim">visitors incoming. traffic is going up.</div>
+                    <div><span className="text-cyan">goal:</span> <span className="text-fg">build a system that never goes down<span className="animate-blink text-ok"> _</span></span></div>
+                  </div>
+                </div>
+
+                <div className="mt-7 grid w-full max-w-md grid-cols-3 gap-2.5 text-sm">
+                  {([
+                    ['cursor', 'Drag a box', '#9ece6a'],
+                    ['plug', 'Wire it up', '#5ee0ff'],
+                    ['play', 'Survive', '#ffd34d'],
+                  ] as [IconName, string, string][]).map(([i, t, c], idx) => (
+                    <div key={t} className="relative flex flex-col items-center gap-1.5 rounded-xl border border-line bg-panel/80 px-2 py-3 backdrop-blur">
+                      <span className="absolute left-2 top-1.5 text-[10px] text-dim">{idx + 1}</span>
+                      <Icon name={i} size={24} style={{ color: c }} />
+                      <span className="text-[11.5px] font-bold text-fg">{t}</span>
+                    </div>
+                  ))}
+                </div>
+
+                <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
+                  <Btn big tone="ok" icon="play" onClick={() => play(next)} className="animate-glow">{started ? 'CONTINUE' : 'PLAY'}</Btn>
+                  <Btn big tone="ghost" icon="book" onClick={onHelp}>Tutorial</Btn>
+                </div>
+                {started && <div className="mt-3 text-[11px] text-dim">next up: <span className="text-fg">{fileName(next)}</span></div>}
+
+                {/* levels (small screens) */}
+                <div className="mt-8 grid w-full grid-cols-4 gap-2 md:hidden">
+                  {LEVELS.map((l) => {
+                    const open = isUnlocked(l, progress);
+                    const s = progress.stars[l.id] ?? 0;
+                    return (
+                      <button
+                        key={l.id}
+                        disabled={!open}
+                        onClick={() => play(l)}
+                        className={cn('flex flex-col items-center gap-1 rounded-xl border bg-panel/80 px-1 py-2', open ? 'border-line' : 'border-line/40 opacity-40', l.id === next.id && 'border-ok')}
+                      >
+                        <Icon name={open ? l.icon : 'lock'} size={20} className="text-cyan" />
+                        <span className="text-[10px] text-dim">{l.endless ? 'inf' : l.n}</span>
+                        {!l.endless && open && <Stars n={s} size={10} />}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                <div className="mt-8 text-[11px] text-dim"><span className="text-ok">$</span> drag. connect. don't get paged at 3am.</div>
+                <div className="mt-6"><MySpecBadge /></div>
               </div>
+            ) : (
+              <div className="relative mx-auto flex min-h-full w-full max-w-2xl flex-col justify-center px-5 py-8">
+                <div className="overflow-hidden rounded-xl border border-line bg-ink/95 shadow-2xl">
+                  <div className="flex items-center justify-between border-b border-line bg-ink2 px-4 py-2.5 text-[11px]">
+                    <span className="flex items-center gap-2 font-bold text-fg">
+                      <Icon name="globe" size={14} className="text-ok" />
+                      GitHub Pages Web Build Deployment
+                    </span>
+                    <span className="inline-flex items-center gap-1.5 rounded-full bg-ok/15 px-2.5 py-0.5 text-[10px] font-bold text-ok">
+                      <span className="h-1.5 w-1.5 rounded-full bg-ok" /> LIVE ON MAIN
+                    </span>
+                  </div>
+                  <div className="space-y-4 p-5 text-[12px]">
+                    <div className="rounded-lg border border-line bg-panel p-3.5">
+                      <div className="text-[10px] uppercase tracking-wider text-dim">Official Playable GitHub Pages Domain</div>
+                      <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
+                        <a
+                          href={LIVE_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="font-bold text-cyan underline decoration-cyan/40 underline-offset-4 hover:text-fg"
+                        >
+                          {LIVE_URL}
+                        </a>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={copyLiveUrl}
+                            className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel2 px-2.5 py-1 text-[11px] font-bold text-fg hover:border-cyan"
+                          >
+                            <Icon name={copied ? 'check' : 'copy'} size={12} className={copied ? 'text-ok' : 'text-cyan'} />
+                            {copied ? 'Copied' : 'Copy Link'}
+                          </button>
+                          <a
+                            href={LIVE_URL}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="inline-flex items-center gap-1.5 rounded-lg bg-ok px-2.5 py-1 text-[11px] font-bold text-ink hover:brightness-110"
+                          >
+                            <Icon name="rocket" size={12} /> Open Live Site
+                          </a>
+                        </div>
+                      </div>
+                    </div>
 
-              <div className="text-[11px] uppercase tracking-[0.5em] text-dim">kernel</div>
-              <h1 className="mt-1 text-[40px] font-black leading-none tracking-tight sm:text-7xl">
-                <span className="gold-text">ARCHITECT</span><span className="animate-blink text-ok">_</span>
-              </h1>
-              <p className="mt-4 text-lg font-bold text-fg sm:text-xl">Keep the internet from melting.</p>
+                    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+                      <div className="rounded-lg border border-line bg-panel/70 p-3">
+                        <div className="text-[10px] uppercase text-dim">Repository</div>
+                        <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-1 block truncate font-bold text-fg hover:text-cyan">
+                          dragon2k2019/kernel-architect
+                        </a>
+                      </div>
+                      <div className="rounded-lg border border-line bg-panel/70 p-3">
+                        <div className="text-[10px] uppercase text-dim">Branch & Source</div>
+                        <div className="mt-1 flex items-center gap-1.5 font-bold text-ok">
+                          <Icon name="branch" size={13} /> main / (root)
+                        </div>
+                      </div>
+                      <div className="rounded-lg border border-line bg-panel/70 p-3">
+                        <div className="text-[10px] uppercase text-dim">Export Format</div>
+                        <div className="mt-1 font-bold text-gold">HTML5 Single-File index.html</div>
+                      </div>
+                    </div>
 
-              <div className="mt-5 w-full max-w-md overflow-hidden rounded-xl border border-line bg-ink/90 text-left text-[12px] leading-6 shadow-xl">
-                <div className="flex items-center gap-1.5 border-b border-line bg-ink2 px-3 py-1.5 text-[10px] text-dim"><Icon name="terminal" size={12} /> bash</div>
-                <div className="px-3.5 py-2.5">
-                  <div><span className="text-ok">$</span> <span className="text-fg">./kernel-architect --play</span></div>
-                  <div className="text-dim">visitors incoming. traffic is going up.</div>
-                  <div><span className="text-cyan">goal:</span> <span className="text-fg">build a system that never goes down<span className="animate-blink text-ok"> _</span></span></div>
+                    <div className="rounded-lg border border-line bg-ink2 p-3.5 font-mono text-[11px] leading-relaxed text-dim">
+                      <div><span className="text-ok">✓</span> Step 1: Exported production static web bundle (<span className="text-fg">index.html</span> with inlined JS/CSS/WebAudio)</div>
+                      <div><span className="text-ok">✓</span> Step 2: Committed &amp; pushed static web build + <span className="text-fg">.nojekyll</span> to <span className="text-cyan">origin/main</span></div>
+                      <div><span className="text-ok">✓</span> Step 3: Activated GitHub Pages (<span className="text-fg">Deploy from branch: main / (root)</span>)</div>
+                      <div><span className="text-ok">✓</span> Step 4: Live domain active at <span className="text-cyan">{LIVE_URL}</span></div>
+                    </div>
+
+                    <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
+                      <Btn tone="ok" icon="play" onClick={() => play(next)}>Play Game Here Now</Btn>
+                      <Btn tone="ghost" icon="back" onClick={() => setActiveTab('welcome')}>Back to Welcome.md</Btn>
+                    </div>
+                  </div>
                 </div>
               </div>
-
-              <div className="mt-7 grid w-full max-w-md grid-cols-3 gap-2.5 text-sm">
-                {([
-                  ['cursor', 'Drag a box', '#9ece6a'],
-                  ['plug', 'Wire it up', '#5ee0ff'],
-                  ['play', 'Survive', '#ffd34d'],
-                ] as [IconName, string, string][]).map(([i, t, c], idx) => (
-                  <div key={t} className="relative flex flex-col items-center gap-1.5 rounded-xl border border-line bg-panel/80 px-2 py-3 backdrop-blur">
-                    <span className="absolute left-2 top-1.5 text-[10px] text-dim">{idx + 1}</span>
-                    <Icon name={i} size={24} style={{ color: c }} />
-                    <span className="text-[11.5px] font-bold text-fg">{t}</span>
-                  </div>
-                ))}
-              </div>
-
-              <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
-                <Btn big tone="ok" icon="play" onClick={() => play(next)} className="animate-glow">{started ? 'CONTINUE' : 'PLAY'}</Btn>
-                <Btn big tone="ghost" icon="book" onClick={onHelp}>Tutorial</Btn>
-              </div>
-              {started && <div className="mt-3 text-[11px] text-dim">next up: <span className="text-fg">{fileName(next)}</span></div>}
-
-              {/* levels (small screens) */}
-              <div className="mt-8 grid w-full grid-cols-4 gap-2 md:hidden">
-                {LEVELS.map((l) => {
-                  const open = isUnlocked(l, progress);
-                  const s = progress.stars[l.id] ?? 0;
-                  return (
-                    <button
-                      key={l.id}
-                      disabled={!open}
-                      onClick={() => play(l)}
-                      className={cn('flex flex-col items-center gap-1 rounded-xl border bg-panel/80 px-1 py-2', open ? 'border-line' : 'border-line/40 opacity-40', l.id === next.id && 'border-ok')}
-                    >
-                      <Icon name={open ? l.icon : 'lock'} size={20} className="text-cyan" />
-                      <span className="text-[10px] text-dim">{l.endless ? 'inf' : l.n}</span>
-                      {!l.endless && open && <Stars n={s} size={10} />}
-                    </button>
-                  );
-                })}
-              </div>
-
-              <div className="mt-8 text-[11px] text-dim"><span className="text-ok">$</span> drag. connect. don't get paged at 3am.</div>
-              <div className="mt-6"><MySpecBadge /></div>
-            </div>
+            )}
           </div>
         </main>
       </div>
@@ -190,7 +285,14 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
       <div className="flex h-6 shrink-0 items-center gap-4 bg-[#3b4a8f] px-3 text-[11px] text-white/90">
         <span className="flex items-center gap-1.5"><Icon name="branch" size={12} /> main</span>
         <span className="hidden sm:inline">{totalStars} stars collected</span>
-        <span className="ml-auto flex items-center gap-1.5"><span className="h-1.5 w-1.5 rounded-full bg-ok" /> all systems nominal</span>
+        <button
+          onClick={() => setActiveTab(activeTab === 'deploy' ? 'welcome' : 'deploy')}
+          className="ml-auto flex items-center gap-1.5 hover:underline"
+          title="View GitHub Pages deployment status"
+        >
+          <span className="h-1.5 w-1.5 rounded-full bg-ok" />
+          <span className="hidden sm:inline">gh-pages:</span> dragon2k2019.github.io/kernel-architect
+        </button>
       </div>
     </div>
   );
