@@ -9,7 +9,28 @@ import { SoundToggle } from './SoundToggle';
 import { MySpecBadge } from './MySpecBadge';
 
 const LIVE_URL = 'https://dragon2k2019.github.io/kernel-architect/';
+const ALIAS_URL = 'https://kernel-architect-game.github.io/';
 const REPO_URL = 'https://github.com/dragon2k2019/kernel-architect';
+const CREATE_ORG_URL = 'https://github.com/account/organizations/new';
+
+const ALIAS_CLI_SCRIPT = `# 1. After creating the free 'kernel-architect-game' GitHub Org
+#    & public repo 'kernel-architect-game/kernel-architect-game.github.io':
+git remote add alias-org https://github.com/kernel-architect-game/kernel-architect-game.github.io.git
+git push -u alias-org main:main --force
+# -> Automatically live at https://kernel-architect-game.github.io/`;
+
+const ALIAS_WRAPPER_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1.0" />
+  <title>Kernel Architect</title>
+  <style>html,body,iframe{margin:0;width:100%;height:100%;border:0;background:#0d0f17;display:block}</style>
+</head>
+<body>
+  <iframe src="https://dragon2k2019.github.io/kernel-architect/" allow="autoplay; fullscreen"></iframe>
+</body>
+</html>`;
 
 export function isUnlocked(l: Level, p: Progress): boolean {
   if (l.n === 1) return true;
@@ -52,16 +73,17 @@ function Stars({ n, size = 12 }: { n: number; size?: number }) {
 
 export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay: (l: Level) => void; onHelp: () => void }) {
   const [activeTab, setActiveTab] = useState<'welcome' | 'deploy'>('welcome');
-  const [copied, setCopied] = useState(false);
+  const [aliasMode, setAliasMode] = useState<'org-push' | 'iframe-alias'>('org-push');
+  const [copiedKey, setCopiedKey] = useState<string | null>(null);
   const next = LEVELS.find((l) => isUnlocked(l, progress) && (progress.stars[l.id] ?? 0) === 0) ?? LEVELS[LEVELS.length - 1];
   const started = Object.keys(progress.stars).length > 0;
   const totalStars = Object.values(progress.stars).reduce((a, b) => a + b, 0);
   const play = (l: Level) => { sfx.unlock(); sfx.go(); onPlay(l); };
 
-  const copyLiveUrl = () => {
-    navigator.clipboard?.writeText(LIVE_URL);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2000);
+  const copyText = (key: string, text: string) => {
+    navigator.clipboard?.writeText(text);
+    setCopiedKey(key);
+    setTimeout(() => setCopiedKey((prev) => (prev === key ? null : prev)), 2000);
   };
 
   return (
@@ -205,7 +227,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                   <div className="flex items-center justify-between border-b border-line bg-ink2 px-4 py-2.5 text-[11px]">
                     <span className="flex items-center gap-2 font-bold text-fg">
                       <Icon name="globe" size={14} className="text-ok" />
-                      GitHub Pages Web Build Deployment
+                      GitHub Pages Web Deployment &amp; Domain Aliasing
                     </span>
                     <span className="inline-flex items-center gap-1.5 rounded-full bg-ok/15 px-2.5 py-0.5 text-[10px] font-bold text-ok">
                       <span className="h-1.5 w-1.5 rounded-full bg-ok" /> LIVE ON MAIN
@@ -213,7 +235,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                   </div>
                   <div className="space-y-4 p-5 text-[12px]">
                     <div className="rounded-lg border border-line bg-panel p-3.5">
-                      <div className="text-[10px] uppercase tracking-wider text-dim">Official Playable GitHub Pages Domain</div>
+                      <div className="text-[10px] uppercase tracking-wider text-dim">Active GitHub Pages URL (User Repository)</div>
                       <div className="mt-1.5 flex flex-wrap items-center justify-between gap-2">
                         <a
                           href={LIVE_URL}
@@ -225,11 +247,11 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                         </a>
                         <div className="flex items-center gap-2">
                           <button
-                            onClick={copyLiveUrl}
+                            onClick={() => copyText('live', LIVE_URL)}
                             className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel2 px-2.5 py-1 text-[11px] font-bold text-fg hover:border-cyan"
                           >
-                            <Icon name={copied ? 'check' : 'copy'} size={12} className={copied ? 'text-ok' : 'text-cyan'} />
-                            {copied ? 'Copied' : 'Copy Link'}
+                            <Icon name={copiedKey === 'live' ? 'check' : 'copy'} size={12} className={copiedKey === 'live' ? 'text-ok' : 'text-cyan'} />
+                            {copiedKey === 'live' ? 'Copied' : 'Copy Link'}
                           </button>
                           <a
                             href={LIVE_URL}
@@ -243,30 +265,99 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                       </div>
                     </div>
 
+                    {/* Alias to kernel-architect-game.github.io */}
+                    <div className="rounded-lg border border-gold/40 bg-panel/90 p-4">
+                      <div className="flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                          <div className="text-[10px] font-bold uppercase tracking-wider text-gold">
+                            Root Alias Target: {ALIAS_URL}
+                          </div>
+                          <div className="mt-0.5 text-[11px] text-dim">
+                            GitHub restricts <code className="text-fg">*.github.io</code> inside <code className="text-fg">CNAME</code> files, so aliasing to <span className="text-cyan">kernel-architect-game.github.io</span> uses a free GitHub Organization named <b className="text-fg">kernel-architect-game</b>.
+                          </div>
+                        </div>
+                        <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold text-gold">
+                          ✓ Handle Unclaimed &amp; Available
+                        </span>
+                      </div>
+
+                      <div className="mt-3 grid grid-cols-1 gap-2 sm:grid-cols-3 text-[11px]">
+                        <a
+                          href={CREATE_ORG_URL}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="rounded-lg border border-line bg-ink2 p-2.5 hover:border-gold"
+                        >
+                          <div className="font-bold text-gold">Step 1 · Free Org</div>
+                          <div className="mt-0.5 text-dim">Create org <code className="text-fg">kernel-architect-game</code> ($0 Free plan)</div>
+                        </a>
+                        <div className="rounded-lg border border-line bg-ink2 p-2.5">
+                          <div className="font-bold text-cyan">Step 2 · Org Repo</div>
+                          <div className="mt-0.5 text-dim">Create repo <code className="text-fg">kernel-architect-game.github.io</code></div>
+                        </div>
+                        <div className="rounded-lg border border-line bg-ink2 p-2.5">
+                          <div className="font-bold text-ok">Step 3 · Push / Alias</div>
+                          <div className="mt-0.5 text-dim">Run <code className="text-fg">bash tools/deploy-alias-org.sh</code></div>
+                        </div>
+                      </div>
+
+                      <div className="mt-3 flex items-center justify-between gap-2 border-b border-line pb-2">
+                        <div className="flex gap-1.5">
+                          <button
+                            onClick={() => setAliasMode('org-push')}
+                            className={cn(
+                              'rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors',
+                              aliasMode === 'org-push' ? 'bg-cyan/20 text-cyan ring-1 ring-cyan/40' : 'bg-ink2 text-dim hover:text-fg',
+                            )}
+                          >
+                            Option A: Direct Git Push
+                          </button>
+                          <button
+                            onClick={() => setAliasMode('iframe-alias')}
+                            className={cn(
+                              'rounded-md px-2.5 py-1 text-[11px] font-bold transition-colors',
+                              aliasMode === 'iframe-alias' ? 'bg-cyan/20 text-cyan ring-1 ring-cyan/40' : 'bg-ink2 text-dim hover:text-fg',
+                            )}
+                          >
+                            Option B: Lightweight Alias HTML
+                          </button>
+                        </div>
+                        <button
+                          onClick={() =>
+                            copyText(
+                              'snippet',
+                              aliasMode === 'org-push' ? ALIAS_CLI_SCRIPT : ALIAS_WRAPPER_HTML,
+                            )
+                          }
+                          className="inline-flex items-center gap-1 rounded-md border border-line bg-ink2 px-2.5 py-1 text-[11px] font-bold text-fg hover:border-cyan"
+                        >
+                          <Icon name={copiedKey === 'snippet' ? 'check' : 'copy'} size={12} className={copiedKey === 'snippet' ? 'text-ok' : 'text-cyan'} />
+                          {copiedKey === 'snippet' ? 'Copied!' : 'Copy Snippet'}
+                        </button>
+                      </div>
+
+                      <pre className="scroll-thin mt-2 overflow-x-auto rounded-lg bg-ink p-3 font-mono text-[10.5px] leading-relaxed text-fg">
+                        {aliasMode === 'org-push' ? ALIAS_CLI_SCRIPT : ALIAS_WRAPPER_HTML}
+                      </pre>
+                    </div>
+
                     <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
                       <div className="rounded-lg border border-line bg-panel/70 p-3">
-                        <div className="text-[10px] uppercase text-dim">Repository</div>
+                        <div className="text-[10px] uppercase text-dim">Primary Repository</div>
                         <a href={REPO_URL} target="_blank" rel="noreferrer" className="mt-1 block truncate font-bold text-fg hover:text-cyan">
                           dragon2k2019/kernel-architect
                         </a>
                       </div>
                       <div className="rounded-lg border border-line bg-panel/70 p-3">
-                        <div className="text-[10px] uppercase text-dim">Branch & Source</div>
+                        <div className="text-[10px] uppercase text-dim">Alias Script Added</div>
                         <div className="mt-1 flex items-center gap-1.5 font-bold text-ok">
-                          <Icon name="branch" size={13} /> main / (root)
+                          <Icon name="terminal" size={13} /> tools/deploy-alias-org.sh
                         </div>
                       </div>
                       <div className="rounded-lg border border-line bg-panel/70 p-3">
-                        <div className="text-[10px] uppercase text-dim">Export Format</div>
-                        <div className="mt-1 font-bold text-gold">HTML5 Single-File index.html</div>
+                        <div className="text-[10px] uppercase text-dim">Alias Wrapper Added</div>
+                        <div className="mt-1 font-bold text-gold">tools/alias-redirect/index.html</div>
                       </div>
-                    </div>
-
-                    <div className="rounded-lg border border-line bg-ink2 p-3.5 font-mono text-[11px] leading-relaxed text-dim">
-                      <div><span className="text-ok">✓</span> Step 1: Exported production static web bundle (<span className="text-fg">index.html</span> with inlined JS/CSS/WebAudio)</div>
-                      <div><span className="text-ok">✓</span> Step 2: Committed &amp; pushed static web build + <span className="text-fg">.nojekyll</span> to <span className="text-cyan">origin/main</span></div>
-                      <div><span className="text-ok">✓</span> Step 3: Activated GitHub Pages (<span className="text-fg">Deploy from branch: main / (root)</span>)</div>
-                      <div><span className="text-ok">✓</span> Step 4: Live domain active at <span className="text-cyan">{LIVE_URL}</span></div>
                     </div>
 
                     <div className="flex flex-wrap items-center justify-between gap-3 pt-1">
