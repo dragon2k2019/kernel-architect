@@ -1,26 +1,26 @@
 #!/usr/bin/env bash
 # =============================================================================
-# Deploy / Alias Kernel Architect to https://kernel-architect-game.github.io/
+# Deploy / Alias Kernel Architect to https://kernel-architect.github.io/
 # =============================================================================
 # Why this works:
 # GitHub Pages prohibits using *.github.io domains inside a CNAME file.
 # Instead, <org>.github.io domains are served automatically from a free GitHub
-# Organization named `kernel-architect-game` with a repository named
-# `kernel-architect-game.github.io`.
+# Organization named `kernel-architect` with a repository named
+# `kernel-architect.github.io`.
 #
 # Prerequisites (takes ~30 seconds in browser):
-# 1. Create free GitHub Org `kernel-architect-game`:
+# 1. Create free GitHub Org `kernel-architect`:
 #    https://github.com/account/organizations/new
-# 2. Create public repo `kernel-architect-game.github.io` inside that org:
-#    https://github.com/organizations/kernel-architect-game/repositories/new
+# 2. Create public repo `kernel-architect.github.io` inside that org:
+#    https://github.com/organizations/kernel-architect/repositories/new
 # 3. Run:
 #    bash tools/deploy-alias-org.sh
 # =============================================================================
 
 set -euo pipefail
 
-ALIAS_ORG="kernel-architect-game"
-ALIAS_REPO="kernel-architect-game.github.io"
+ALIAS_ORG="kernel-architect"
+ALIAS_REPO="kernel-architect.github.io"
 REMOTE_URL="${1:-https://github.com/${ALIAS_ORG}/${ALIAS_REPO}.git}"
 
 echo "==> Building standalone HTML5 bundle (dist/index.html)..."
@@ -41,4 +41,4 @@ git push -u alias-org main:main --force
 
 echo ""
 echo "✓ Deployed! GitHub Pages for <org>.github.io repositories activates automatically."
-echo "✓ Your aliased root URL is live at: https://kernel-architect-game.github.io/"
+echo "✓ Your aliased root URL is live at: https://kernel-architect.github.io/"

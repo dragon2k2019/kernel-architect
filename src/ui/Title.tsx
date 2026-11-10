@@ -8,15 +8,15 @@ import { Icon, NodeIcon, type IconName } from './icons';
 import { SoundToggle } from './SoundToggle';
 
 const LIVE_URL = 'https://dragon2k2019.github.io/kernel-architect/';
-const ALIAS_URL = 'https://kernel-architect-game.github.io/';
+const ALIAS_URL = 'https://kernel-architect.github.io/';
 const REPO_URL = 'https://github.com/dragon2k2019/kernel-architect';
 const CREATE_ORG_URL = 'https://github.com/account/organizations/new';
 
-const ALIAS_CLI_SCRIPT = `# 1. After creating the free 'kernel-architect-game' GitHub Org
-#    & public repo 'kernel-architect-game/kernel-architect-game.github.io':
-git remote add alias-org https://github.com/kernel-architect-game/kernel-architect-game.github.io.git
+const ALIAS_CLI_SCRIPT = `# 1. After creating the free 'kernel-architect' GitHub Org
+#    & public repo 'kernel-architect/kernel-architect.github.io':
+git remote add alias-org https://github.com/kernel-architect/kernel-architect.github.io.git
 git push -u alias-org main:main --force
-# -> Automatically live at https://kernel-architect-game.github.io/`;
+# -> Automatically live at https://kernel-architect.github.io/`;
 
 const ALIAS_WRAPPER_HTML = `<!doctype html>
 <html lang="en">
@@ -263,7 +263,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                       </div>
                     </div>
 
-                    {/* Alias to kernel-architect-game.github.io */}
+                    {/* Alias to kernel-architect.github.io */}
                     <div className="rounded-lg border border-gold/40 bg-panel/90 p-4">
                       <div className="flex flex-wrap items-center justify-between gap-2">
                         <div>
@@ -271,7 +271,7 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                             Root Alias Target: {ALIAS_URL}
                           </div>
                           <div className="mt-0.5 text-[11px] text-dim">
-                            GitHub restricts <code className="text-fg">*.github.io</code> inside <code className="text-fg">CNAME</code> files, so aliasing to <span className="text-cyan">kernel-architect-game.github.io</span> uses a free GitHub Organization named <b className="text-fg">kernel-architect-game</b>.
+                            GitHub restricts <code className="text-fg">*.github.io</code> inside <code className="text-fg">CNAME</code> files, so aliasing to <span className="text-cyan">kernel-architect.github.io</span> uses a free GitHub Organization named <b className="text-fg">kernel-architect</b>.
                           </div>
                         </div>
                         <span className="inline-flex items-center gap-1.5 rounded-full bg-gold/15 px-2.5 py-0.5 text-[10px] font-bold text-gold">
@@ -287,11 +287,11 @@ export function Title({ progress, onPlay, onHelp }: { progress: Progress; onPlay
                           className="rounded-lg border border-line bg-ink2 p-2.5 hover:border-gold"
                         >
                           <div className="font-bold text-gold">Step 1 · Free Org</div>
-                          <div className="mt-0.5 text-dim">Create org <code className="text-fg">kernel-architect-game</code> ($0 Free plan)</div>
+                          <div className="mt-0.5 text-dim">Create org <code className="text-fg">kernel-architect</code> ($0 Free plan)</div>
                         </a>
                         <div className="rounded-lg border border-line bg-ink2 p-2.5">
                           <div className="font-bold text-cyan">Step 2 · Org Repo</div>
-                          <div className="mt-0.5 text-dim">Create repo <code className="text-fg">kernel-architect-game.github.io</code></div>
+                          <div className="mt-0.5 text-dim">Create repo <code className="text-fg">kernel-architect.github.io</code></div>
                         </div>
                         <div className="rounded-lg border border-line bg-ink2 p-2.5">
                           <div className="font-bold text-ok">Step 3 · Push / Alias</div>
